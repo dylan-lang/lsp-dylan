@@ -1,0 +1,46 @@
+{
+	"name": "dylan-lsp",
+	"description": "Client for VSCode",
+	"author": "Peter",
+	"license": "MIT",
+	"version": "0.0.1",
+	"publisher": "peter",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/pedro-w/lsp-dylan"
+	},
+	"engines": {
+		"vscode": "^1.26.0"
+	},
+	"scripts": {
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"update-vscode": "vscode-install",
+		"postinstall": "vscode-install"
+	},
+	"activationEvents": [
+		"onLanguage:dylan"
+	],
+	"contributes": {"languages": [{
+		"id": "dylan",
+		"aliases": [
+			"Dylan"
+		],
+		"extensions": [
+			".dylan",
+			".lid"
+		],
+		"configuration": "./language-configuration.json"
+	}]},
+	"main": "out/dylan",
+	"dependencies": {
+		"vscode-languageclient": "^4.1.4"
+	},
+	"devDependencies": {
+		"vscode": "^1.23.0",
+		"@types/mocha": "^5.2.0",
+		"@types/node": "^8.0.0",
+		"tslint": "^5.11.0",
+		"typescript": "^3.1.3"
+	}
+}
