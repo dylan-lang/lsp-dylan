@@ -44,6 +44,18 @@ define function headers(stm)
     #f
   end if
 end function;
+
+define function json(#rest kvs) => (table :: <string-table>)
+  let count :: <integer> = size(kvs);
+  let ts = ash(count, -1);
+  let table = make(<string-table>, size: ts);
+  for (i from 0 below count by 2)
+    let key = kvs[i];
+    let value = kvs[i + 1];
+    table[key] := value;
+  end for;
+  table
+end function;
 /*
 define function dump(t :: <table>) => ()
   format(*standard-error*, "Table Dump\n==========\n");
@@ -249,13 +261,13 @@ define inline method show-error(session :: <session>,
 end method;
 
 define inline method show-warning(session :: <session>,
-                        m :: <string>)
+                                  m :: <string>)
     => ()
   show-message(session, $message-type-warning, m);
 end method;
 
 define inline method show-info(session :: <session>,
-                        m :: <string>)
+                               m :: <string>)
     => ()
   show-message(session, $message-type-info, m);
 end method;
@@ -265,6 +277,45 @@ define inline method show-log(session :: <session>,
     => ()
   show-message(session, $message-type-log, m);
 end method;
+
+define function make-range(start, endp)
+  let rnge = make(<string-table>);
+  rnge["start"] := start;
+  rnge["end"] := endp;
+  rnge
+end function;
+
+define function make-position(line, character)
+  let position = make(<string-table>);
+  position["line"] := line;
+  position["character"] := character;
+  position
+end function;
+
+define function handle-workspace/symbol (session :: <session>,
+                                         msg :: <string-table>)
+  => ()
+  let params = msg["params"];
+  let query = params["query"];
+  format(*standard-output*, "Query: %s\n", query);
+  let symbol = make(<string-table>);
+  let symbols = list(symbol);
+  symbol["name"] := "fart";
+  symbol["kind"] := 13;
+  let location = make(<string-table>);
+  location["uri"] := "lsp-dylan.dylan";
+  let range = make-range(make-position(0, 0), make-position(0,5));
+  location["range"] := range;
+  symbol["location"] := location;
+  send-response(session, msg["id"], symbols);
+end function;
+
+define function handle-textDocument/hover(session :: <session>,
+                                          msg :: <string-table>) => ()
+  let hover = make(<string-table>);
+  hover["contents"] := "What!!";
+  send-response(session, msg["id"], hover);
+end function;
 
 define function main
   (name :: <string>, arguments :: <vector>)
@@ -280,9 +331,9 @@ define function main
       "initialize" =>
         begin
           // TODO set up server based on client capabilities
-	  let params = make(<string-table>);
-	  let capabilities = make(<string-table>);
-	  params["capabilities"] := capabilities;
+          let capabilities = json("hoverProvider", #t,
+                                  "workspaceSymbolProvider", #t);
+          let params = json("capabilities", capabilities);
           send-response(session, id, params);
           session.state := $session-active;
           show-info(session, "Dylan LSP server started");
@@ -305,9 +356,9 @@ define function main
     let id = element(msg, "id", default: #f);
     select (meth by =)
       "initialize" =>
-        begin
           send-error-response(session, id, $invalid-request);
-        end;
+      "workspace/symbol" => handle-workspace/symbol(session, msg); 
+      "textDocument/hover" => handle-textDocument/hover(session, msg); 
       // TODO handle all messages here
       "shutdown" =>
         begin
@@ -321,6 +372,8 @@ define function main
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
         begin
+          format(*standard-error*, "Method '%s' is not implemented\n", meth);
+          force-output(*standard-error*);
           if (id)
             send-error-response(session, id, $method-not-found);
           end if;
@@ -355,3 +408,9 @@ define function main
 end function main;
 
 main(application-name(), application-arguments());
+
+
+// Local Variables:
+// indent-tabs-mode: nil
+// compile-command: "dylan-compiler -build lsp-dylan"
+// End:
