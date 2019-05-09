@@ -23,6 +23,7 @@ user's `.emacs`.
 Testing with VS Code (1.33.1 on x64 linux)
 
 1. Open the `vscode` folder in VS Code
+1. First time only, `npm install` to get the dependencies
 2. Start the extension client with `CTRL+SHIFT+B`
 3. In the debug viewlet, click the green play arrow (Launch Extension)
 4. A new VS Code window will open with the extension running.
