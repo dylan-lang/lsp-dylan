@@ -1,0 +1,16 @@
+* To be implemented
+These are methods that emacs-lsp will call
+** textDocument/didOpen
+https://microsoft.github.io/language-server-protocol/specification#textDocument_didOpen
+Params: DidOpenTextDocumentParams
+{ textDocument: {uri: XXX, languageId: YYY, version: ZZZ, text: TTT}}
+** textDocument/declaration
+https://microsoft.github.io/language-server-protocol/specification#textDocument_declaration
+Go to declaration. 
+Params: TextDocumentPositionParams
+{ textDocument: {uri: ZZ}
+  position: {line: XX, character: YY}}
+Result: Location (or array of) (or array of LocationLink) (or null)
+{ uri: ZZ, 
+range: { start: {line: XX, character: YY}, 
+  end: {line: XX, character: YY}}}

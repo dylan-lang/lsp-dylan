@@ -113,13 +113,13 @@ define generic send-request(session :: <session>,
   => ();
 
 define generic send-response(session :: <session>,
-                             id :: <integer>,
+                             id :: <object>,
                              result :: <object>)
   => ();
 
 define generic send-error-response
   (session :: <session>,
-   id :: <integer>,
+   id :: <object>,
    error-code :: <integer>,
    #key error-message :: false-or(<string>) = #f,
         error-data :: <object> = #f)
@@ -169,7 +169,7 @@ define method send-request(session :: <session>,
 end method;
 
 define method send-response(session :: <session>,
-                            id :: <integer>,
+                            id :: <object>,
                             result :: <object>)
     => ()
   let message = make-message(id: id);
@@ -178,7 +178,7 @@ define method send-response(session :: <session>,
 end method;
 
 define method send-error-response(session :: <session>,
-                                  id :: <integer>,
+                                  id :: <object>,
                                   error-code :: <integer>,
                                   #key error-message :: false-or(<string>) = #f,
                                        error-data :: <object> = #f)
@@ -207,7 +207,8 @@ end method;
 define method receive-message (session :: <stdio-session>)
     => (method-name :: <string>, id :: <object>, params :: <object>);
   let message = read-json-message(*standard-input*);
-  values(message["method"],
+  local-log("RCV: %s\n",element(message, "method", default: "(none)"));
+  values(element(message, "method", default: ""),
          element(message, "id", default: #f),
          element(message, "params", default: #f))
 end method;
@@ -318,7 +319,7 @@ define function handle-workspace/symbol (session :: <session>,
   let symbols = list(json("name", "a-name",
                           "kind", 13,
                           "location", json("range", range,
-                                           "location", "file:///home/peter/Projects/lsp-dylan/lsp-dylan.dylan")));
+                                           "uri", "file:///home/peter/Projects/lsp-dylan/lsp-dylan.dylan")));
   send-response(session, id, symbols);
 end function;
 

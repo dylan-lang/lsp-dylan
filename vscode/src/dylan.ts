@@ -29,12 +29,8 @@ export function activate(context: ExtensionContext) {
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		// Register the server for plain text documents
+		// Register the server for dylan source documents
 		documentSelector: [{ scheme: 'file', language: 'dylan', pattern: '*.dylan' }],
-		synchronize: {
-			// Notify the server about file changes to '.clientrc files contained in the workspace
-			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-		}
 	};
 
 	// Create the language client and start the client.
