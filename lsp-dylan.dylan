@@ -44,7 +44,12 @@ define function headers(stm)
     #f
   end if
 end function;
-
+/** 
+ * Make a string-table from a sequence of key value pairs.
+ * This is just for convenience.
+ * TODO use a more lightweight structure than <string-table>
+ * because these are just 'write-only'.
+*/
 define function json(#rest kvs) => (table :: <string-table>)
   let count :: <integer> = size(kvs);
   let ts = ash(count, -1);
@@ -126,7 +131,7 @@ define generic send-notification(session :: <session>,
   => ();
 
 define generic receive-message (session :: <session>)
-  => (message :: <object>);
+  => (method-name :: <string>, id :: <integer>, params :: <object>);
 
 define generic flush(session :: <session>)
   => ();
@@ -200,8 +205,11 @@ define method send-notification(session :: <session>,
 end method;
 
 define method receive-message (session :: <stdio-session>)
-    => (message :: <object>)
-  read-json-message(*standard-input*);
+    => (method-name :: <string>, id :: <integer>, params :: <object>);
+  let message = read-json-message(*standard-input*);
+  values(message["method"],
+         element(message, "id", default: #f),
+         element(message, "params", default: f))
 end method;
 
 define method flush(session :: <stdio-session>)
@@ -278,18 +286,16 @@ define inline method show-log(session :: <session>,
   show-message(session, $message-type-log, m);
 end method;
 
+define function local-log(m :: <string>, #rest params) => ()
+  apply(format, *standard-error*, m, params);
+end function;
+
 define function make-range(start, endp)
-  let rnge = make(<string-table>);
-  rnge["start"] := start;
-  rnge["end"] := endp;
-  rnge
+  json("start", start, "end", endp);
 end function;
 
 define function make-position(line, character)
-  let position = make(<string-table>);
-  position["line"] := line;
-  position["character"] := character;
-  position
+  json("line", line, "character", character);
 end function;
 
 define function handle-workspace/symbol (session :: <session>,
@@ -297,23 +303,18 @@ define function handle-workspace/symbol (session :: <session>,
   => ()
   let params = msg["params"];
   let query = params["query"];
-  format(*standard-output*, "Query: %s\n", query);
-  let symbol = make(<string-table>);
-  let symbols = list(symbol);
-  symbol["name"] := "fart";
-  symbol["kind"] := 13;
-  let location = make(<string-table>);
-  location["uri"] := "lsp-dylan.dylan";
+  local-log("Query: %s\n", query);
   let range = make-range(make-position(0, 0), make-position(0,5));
-  location["range"] := range;
-  symbol["location"] := location;
+  let symbols = list(json("name", "a-name",
+                          "kind", 13,
+                          "location", json("range", range,
+                                           "location", "lsp-dylan.dylan")));
   send-response(session, msg["id"], symbols);
 end function;
 
 define function handle-textDocument/hover(session :: <session>,
                                           msg :: <string-table>) => ()
-  let hover = make(<string-table>);
-  hover["contents"] := "What!!";
+  let hover = json("contents", "What!");
   send-response(session, msg["id"], hover);
 end function;
 
@@ -372,8 +373,13 @@ define function main
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
         begin
-          format(*standard-error*, "Method '%s' is not implemented\n", meth);
-          force-output(*standard-error*);
+          local-log("%s '%s' is not implemented\n",
+                    if (id)
+                      "Request"
+                    else
+                      "Notification"
+                    end,
+                    meth);
           if (id)
             send-error-response(session, id, $method-not-found);
           end if;
