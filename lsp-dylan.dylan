@@ -131,7 +131,7 @@ define generic send-notification(session :: <session>,
   => ();
 
 define generic receive-message (session :: <session>)
-  => (method-name :: <string>, id :: <integer>, params :: <object>);
+  => (method-name :: <string>, id :: <object>, params :: <object>);
 
 define generic flush(session :: <session>)
   => ();
@@ -205,11 +205,11 @@ define method send-notification(session :: <session>,
 end method;
 
 define method receive-message (session :: <stdio-session>)
-    => (method-name :: <string>, id :: <integer>, params :: <object>);
+    => (method-name :: <string>, id :: <object>, params :: <object>);
   let message = read-json-message(*standard-input*);
   values(message["method"],
          element(message, "id", default: #f),
-         element(message, "params", default: f))
+         element(message, "params", default: #f))
 end method;
 
 define method flush(session :: <stdio-session>)
@@ -256,9 +256,8 @@ define method show-message(session :: <session>,
                            msg-type :: <integer>,
                            m :: <string>)
     => ()
-  let show-message-params = make(<string-table>);
-  show-message-params["type"] := msg-type;
-  show-message-params["message"] := m;
+  let show-message-params = json("type", msg-type,
+                                 "message", m);
   send-notification(session, "window/showMessage", show-message-params);
 end method;
 
@@ -288,6 +287,7 @@ end method;
 
 define function local-log(m :: <string>, #rest params) => ()
   apply(format, *standard-error*, m, params);
+  force-output(*standard-error*);
 end function;
 
 define function make-range(start, endp)
@@ -298,26 +298,48 @@ define function make-position(line, character)
   json("line", line, "character", character);
 end function;
 
+define function make-markup(txt, #key markdown = #f)
+  let kind = if (markdown)
+               "markdown"
+             else
+               "plaintext"
+             end;
+  json("value", txt,
+       "kind", kind);
+end function;
+
 define function handle-workspace/symbol (session :: <session>,
-                                         msg :: <string-table>)
+                                         id :: <object>,
+                                         params :: <object>)
   => ()
-  let params = msg["params"];
   let query = params["query"];
   local-log("Query: %s\n", query);
   let range = make-range(make-position(0, 0), make-position(0,5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
                           "location", json("range", range,
-                                           "location", "lsp-dylan.dylan")));
-  send-response(session, msg["id"], symbols);
+                                           "location", "file:///home/peter/Projects/lsp-dylan/lsp-dylan.dylan")));
+  send-response(session, id, symbols);
 end function;
 
 define function handle-textDocument/hover(session :: <session>,
-                                          msg :: <string-table>) => ()
-  let hover = json("contents", "What!");
-  send-response(session, msg["id"], hover);
+                                          id :: <object>,
+                                          params :: <object>) => ()
+  let hover = json("contents", make-markup("What *is* this?!", markdown: #t));
+  send-response(session, id, hover);
 end function;
 
+define function handle-textDocument/didOpen(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  let textDocument = params["textDocument"];
+  let uri = textDocument["uri"];
+  let languageId = textDocument["languageId"];
+  let version = textDocument["version"];
+  let text = textDocument["text"];
+  local-log("File %s of type %s, version %s, length %d\n",
+            uri, languageId, version, size(text));
+end function;
 define function main
   (name :: <string>, arguments :: <vector>)
   let msg = #f;
@@ -325,19 +347,18 @@ define function main
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
         begin
           // TODO set up server based on client capabilities
           let capabilities = json("hoverProvider", #t,
+                                  "textDocumentSync", 1,
                                   "workspaceSymbolProvider", #t);
           let params = json("capabilities", capabilities);
           send-response(session, id, params);
           session.state := $session-active;
-          show-info(session, "Dylan LSP server started");
+          show-info(session, "Dylan LSP server started.");
         end;
       "exit" => session.state := $session-killed;
       otherwise =>
@@ -352,14 +373,13 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
           send-error-response(session, id, $invalid-request);
-      "workspace/symbol" => handle-workspace/symbol(session, msg); 
-      "textDocument/hover" => handle-textDocument/hover(session, msg); 
+      "workspace/symbol" => handle-workspace/symbol(session, id, params); 
+      "textDocument/hover" => handle-textDocument/hover(session, id, params);
+      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
       // TODO handle all messages here
       "shutdown" =>
         begin
@@ -389,9 +409,7 @@ define function main
   end while;
   // Shutdown state
   while (session.state == $session-shutdown)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params)  = receive-message(session);
     select (meth by =)
       "exit" =>
         begin
