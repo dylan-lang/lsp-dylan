@@ -44,6 +44,23 @@ define function headers(stm)
     #f
   end if
 end function;
+/**
+ * Make a string-table from a sequence of key value pairs.
+ * This is just for convenience.
+ * TODO use a more lightweight structure than <string-table>
+ * because these are just 'write-only'.
+*/
+define function json(#rest kvs) => (table :: <string-table>)
+  let count :: <integer> = size(kvs);
+  let ts = ash(count, -1);
+  let table = make(<string-table>, size: ts);
+  for (i from 0 below count by 2)
+    let key = kvs[i];
+    let value = kvs[i + 1];
+    table[key] := value;
+  end for;
+  table
+end function;
 /*
 define function dump(t :: <table>) => ()
   format(*standard-error*, "Table Dump\n==========\n");
@@ -96,13 +113,13 @@ define generic send-request(session :: <session>,
   => ();
 
 define generic send-response(session :: <session>,
-                             id :: <integer>,
+                             id :: <object>,
                              result :: <object>)
   => ();
 
 define generic send-error-response
   (session :: <session>,
-   id :: <integer>,
+   id :: <object>,
    error-code :: <integer>,
    #key error-message :: false-or(<string>) = #f,
         error-data :: <object> = #f)
@@ -114,7 +131,7 @@ define generic send-notification(session :: <session>,
   => ();
 
 define generic receive-message (session :: <session>)
-  => (message :: <object>);
+  => (method-name :: <string>, id :: <object>, params :: <object>);
 
 define generic flush(session :: <session>)
   => ();
@@ -147,12 +164,12 @@ define method send-request(session :: <session>,
   let id = session.id;
   session.id := id + 1;
   let message = make-message(method-name: method-name, id: id);
-  message["result"] := params;
+  message["params"] := params;
   send-raw-message(session, message);
 end method;
 
 define method send-response(session :: <session>,
-                            id :: <integer>,
+                            id :: <object>,
                             result :: <object>)
     => ()
   let message = make-message(id: id);
@@ -161,7 +178,7 @@ define method send-response(session :: <session>,
 end method;
 
 define method send-error-response(session :: <session>,
-                                  id :: <integer>,
+                                  id :: <object>,
                                   error-code :: <integer>,
                                   #key error-message :: false-or(<string>) = #f,
                                        error-data :: <object> = #f)
@@ -188,8 +205,11 @@ define method send-notification(session :: <session>,
 end method;
 
 define method receive-message (session :: <stdio-session>)
-    => (message :: <object>)
-  read-json-message(*standard-input*);
+    => (method-name :: <string>, id :: <object>, params :: <object>);
+  let message = read-json-message(*standard-input*);
+  values(element(message, "method", default: ""),
+         element(message, "id", default: #f),
+         element(message, "params", default: #f))
 end method;
 
 define method flush(session :: <stdio-session>)
@@ -236,9 +256,8 @@ define method show-message(session :: <session>,
                            msg-type :: <integer>,
                            m :: <string>)
     => ()
-  let show-message-params = make(<string-table>);
-  show-message-params["type"] := msg-type;
-  show-message-params["message"] := m;
+  let show-message-params = json("type", msg-type,
+                                 "message", m);
   send-notification(session, "window/showMessage", show-message-params);
 end method;
 
@@ -249,13 +268,13 @@ define inline method show-error(session :: <session>,
 end method;
 
 define inline method show-warning(session :: <session>,
-                        m :: <string>)
+                                  m :: <string>)
     => ()
   show-message(session, $message-type-warning, m);
 end method;
 
 define inline method show-info(session :: <session>,
-                        m :: <string>)
+                               m :: <string>)
     => ()
   show-message(session, $message-type-info, m);
 end method;
@@ -266,6 +285,97 @@ define inline method show-log(session :: <session>,
   show-message(session, $message-type-log, m);
 end method;
 
+define function local-log(m :: <string>, #rest params) => ()
+  apply(format, *standard-error*, m, params);
+  force-output(*standard-error*);
+end function;
+
+define function make-range(start, endp)
+  json("start", start, "end", endp);
+end function;
+
+define function make-position(line, character)
+  json("line", line, "character", character);
+end function;
+
+define function make-markup(txt, #key markdown = #f)
+  let kind = if (markdown)
+               "markdown"
+             else
+               "plaintext"
+             end;
+  json("value", txt,
+       "kind", kind);
+end function;
+
+define function handle-workspace/symbol (session :: <session>,
+                                         id :: <object>,
+                                         params :: <object>)
+  => ()
+  // TODO this is only a dummy
+  let query = params["query"];
+  local-log("Query: %s\n", query);
+  let range = make-range(make-position(0, 0), make-position(0,5));
+  let symbols = list(json("name", "a-name",
+                          "kind", 13,
+                          "location", json("range", range,
+                                           "uri", "file:///home/peter/Projects/lsp-dylan/lsp-dylan.dylan")));
+  send-response(session, id, symbols);
+end function;
+
+define function handle-textDocument/hover(session :: <session>,
+                                          id :: <object>,
+                                          params :: <object>) => ()
+  // TODO this is only a dummy
+  let hover = json("contents", make-markup("**Hover**\nMore information *can* be provided.", markdown: #t));
+  send-response(session, id, hover);
+end function;
+
+define function handle-textDocument/didOpen(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  // TODO this is only a dummy
+  let textDocument = params["textDocument"];
+  let uri = textDocument["uri"];
+  let languageId = textDocument["languageId"];
+  let version = textDocument["version"];
+  let text = textDocument["text"];
+  local-log("File %s of type %s, version %s, length %d\n",
+            uri, languageId, version, size(text));
+end function;
+
+define function handle-workspace/didChangeConfiguration(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  local-log("Did change configuration");
+  show-info(session, "The config was changed");
+end function;
+define function handle-initialized(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  /*
+let hregistration = json("id", "dylan-reg-hover",
+                          "method", "textDocument/hover");
+  let oregistration = json("id", "dylan-reg-open",
+                          "method", "textDocument/didOpen");
+
+  send-request(session, "client/registerCapability", json("registrations", list(hregistration,
+  oregistration)));
+*/
+  show-info(session, "Dylan LSP server started.");
+end function;
+
+define function handle-initialize(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+          let capabilities = json("hoverProvider", #t,
+                                  "textDocumentSync", 1,
+                                  "workspaceSymbolProvider", #t);
+          let params = json("capabilities", capabilities);
+          send-response(session, id, params);
+          session.state := $session-active;
+end function;
+
 define function main
   (name :: <string>, arguments :: <vector>)
   let msg = #f;
@@ -273,20 +383,9 @@ define function main
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "initialize" =>
-        begin
-          // TODO set up server based on client capabilities
-	  let params = make(<string-table>);
-	  let capabilities = make(<string-table>);
-	  params["capabilities"] := capabilities;
-          send-response(session, id, params);
-          session.state := $session-active;
-          show-info(session, "Dylan LSP server started");
-        end;
+      "initialize" => handle-initialize(session, id, params);
       "exit" => session.state := $session-killed;
       otherwise =>
         // Respond to any request with an error, and drop any notifications
@@ -300,27 +399,38 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
-        begin
           send-error-response(session, id, $invalid-request);
-        end;
-      // TODO handle all messages here
+      "initialized" => handle-initialized(session, id, params);
+      "workspace/symbol" => handle-workspace/symbol(session, id, params);
+      "textDocument/hover" => handle-textDocument/hover(session, id, params);
+      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
+      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
+      // TODO handle all other messages here
       "shutdown" =>
         begin
           // TODO shutdown everything
-          session.state := $session-shutdown;
           send-response(session, id, $null);
           session.state := $session-shutdown;
         end;
       "exit" => session.state := $session-killed;
+      "" => begin
+              // TODO response needs a callback.
+              local-log("Response to %s was %=\n", id, params);
+            end; // it's a response to something we sent!
       otherwise =>
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
         begin
+          local-log("%s '%s' is not implemented\n",
+                    if (id)
+                      "Request"
+                    else
+                      "Notification"
+                    end,
+                    meth);
           if (id)
             send-error-response(session, id, $method-not-found);
           end if;
@@ -330,9 +440,7 @@ define function main
   end while;
   // Shutdown state
   while (session.state == $session-shutdown)
-    let msg = receive-message(session);
-    let meth = msg["method"];
-    let id = element(msg, "id", default: #f);
+    let (meth, id, params)  = receive-message(session);
     select (meth by =)
       "exit" =>
         begin
@@ -355,3 +463,9 @@ define function main
 end function main;
 
 main(application-name(), application-arguments());
+
+
+// Local Variables:
+// indent-tabs-mode: nil
+// compile-command: "dylan-compiler -build lsp-dylan"
+// End:
