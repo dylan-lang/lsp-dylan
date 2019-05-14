@@ -3,6 +3,10 @@ Synopsis: Test stuff for language server protocol
 Author: Peter
 Copyright: 2019
 
+// Options etc.
+define variable *debug-mode* :: <boolean> = #f;
+define variable *trace-messages* :: <boolean> = #f;
+define variable *trace-verbose* :: <boolean> = #f;
 // Headers for the JSONRPC call
 define variable $content-length = "Content-Length";
 
@@ -177,6 +181,9 @@ define method send-notification(session :: <session>,
     message["params"] := params;
   end if;
   send-raw-message(session, message);
+  if (*trace-messages*)
+    local-log("Server: send notification '%s'\n", method-name);
+  end if; 
 end method;
 
 /** 
@@ -194,10 +201,16 @@ define method receive-message (session :: <session>)
       let id =  element(message, "id", default: #f);
       let params = element(message, "params", default: #f);
       if (method-name)
+        if (*trace-messages*)
+          local-log("Server: receive request '%s'\n", method-name);
+        end if; 
         // Received a request or notification
         return (method-name, id, params);
       else
         // Received a response
+        if (*trace-messages*)
+          local-log("Server: receive response\n");
+        end if; 
         let func = element(session.callbacks, id, default: #f);
         if (func)
           remove-key!(session.callbacks, id);
@@ -222,6 +235,9 @@ define method send-request(session :: <session>,
     session.callbacks[id] := callback;
   end if;
   send-raw-message(session, message);
+  if (*trace-messages*)
+    local-log("Server: send request '%s'\n", method-name);
+  end if; 
 end method;
 
 define method send-response(session :: <session>,
@@ -231,6 +247,9 @@ define method send-response(session :: <session>,
   let message = make-message(id: id);
   message["result"] := result;
   send-raw-message(session, message);
+  if (*trace-messages*)
+    local-log("Server: send response\n");
+  end if; 
 end method;
 
 define method send-error-response(session :: <session>,
@@ -247,6 +266,9 @@ define method send-error-response(session :: <session>,
   end if;
   message["error"] := params;
   send-raw-message(session, message);
+  if (*trace-messages*)
+    local-log("Server: send error response\n");
+  end if; 
 end method;
 
 define class <stdio-session> (<session>)
@@ -418,11 +440,27 @@ define function handle-initialized(session :: <session>,
                          end);
 */
   show-info(session, "Dylan LSP server started.");
+  show-info(session, format-to-string("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*));
 end function;
 
 define function handle-initialize(session :: <session>,
                                             id :: <object>,
                                             params :: <object>) => ()
+          let trace = element(params, "trace", default: "off");
+          select (trace by \=)
+          "off" => begin
+            *trace-messages* := #f;
+            *trace-verbose* := #f;
+            end;
+          "messages" => begin
+            *trace-messages* := #t;
+            *trace-verbose* := #f;
+            end;
+          "verbose" => begin
+            *trace-messages* := #t;
+            *trace-verbose* := #t;
+            end;
+          end select;
           let capabilities = json("hoverProvider", #t,
                                   "textDocumentSync", 1,
                                   "workspaceSymbolProvider", #t);
@@ -433,6 +471,11 @@ end function;
 
 define function main
   (name :: <string>, arguments :: <vector>)
+  // Command line processing
+  if (member?("--debug", arguments, test: \=))
+    *debug-mode* := #t;
+  end if;
+  // Set up.
   let msg = #f;
   let retcode = 1;
   let session = make(<stdio-session>);
