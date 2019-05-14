@@ -61,7 +61,7 @@ define function json(#rest kvs) => (table :: <string-table>)
   end for;
   table
 end function;
-/*
+
 define function dump(t :: <table>) => ()
   format(*standard-error*, "Table Dump\n==========\n");
   for (v keyed-by k in key-sequence(t))
@@ -71,7 +71,7 @@ define function dump(t :: <table>) => ()
            v, object-class(v));
   end for;
 end;
-*/
+
 define method read-json-message(stream :: <stream>) => (json :: <object>)
   let hdrs = headers(stream);
   if (hdrs)
@@ -99,17 +99,37 @@ define constant $session-active = 2;
 define constant $session-shutdown = 3;
 define constant $session-killed = 4;
 
+// This is just a table that uses \= to compare
+// because IDs can be a number or string
+define class <callback-table> (<table>)
+end class;
+
+define method table-protocol(table :: <callback-table>)
+  => (compare :: <function>, hash :: <function>)
+  values(\=, object-hash)
+end method;
+
 define class <session> (<object>)
+  // Next ID to use in a request/notification
   slot id :: <integer> = 0;
+  // Current state, see $session-preinit et al.
   slot state :: <integer> = $session-preinit;
+  // Table of functions keyed by ID. Function signature is:
+  // (session :: <session>, params :: object) => ()
+  constant slot callbacks = make(<callback-table>);
 end class;
 
 define generic send-raw-message(session :: <session>,
                                 message :: <object>)
   => ();
+
+define generic receive-raw-message(session :: <session>)
+  => (message :: <object>);
+
 define generic send-request(session :: <session>,
                             method-name :: <string>,
-                            params :: <object>)
+                            params :: <object>,
+                            #key callback :: false-or(<function>))
   => ();
 
 define generic send-response(session :: <session>,
@@ -148,23 +168,59 @@ define function make-message(#key method-name = #f, id = #f)
   msg
 end function;
 
-define class <stdio-session> (<session>)
-end class;
-
-define method send-raw-message(session :: <stdio-session>,
-                               message :: <object>)
+define method send-notification(session :: <session>,
+                                method-name :: <string>,
+                                params :: <object>)
     => ()
-  write-json-message(*standard-output*, message);
+  let message = make-message(method-name: method-name);
+  if (params)
+    message["params"] := params;
+  end if;
+  send-raw-message(session, message);
 end method;
+
+/** 
+* Get the next message.
+* If the message is a notification or request, return it
+* for processing. If it is a response to a request sent
+* by the server, look up the reponse callback and call it.
+*/ 
+define method receive-message (session :: <session>)
+  => (method-name :: <string>, id :: <object>, params :: <object>);
+  block (return)
+    let message = #f;
+    while (message := receive-raw-message(session))
+      let method-name = element(message, "method", default: #f);
+      let id =  element(message, "id", default: #f);
+      let params = element(message, "params", default: #f);
+      if (method-name)
+        // Received a request or notification
+        return (method-name, id, params);
+      else
+        // Received a response
+        let func = element(session.callbacks, id, default: #f);
+        if (func)
+          remove-key!(session.callbacks, id);
+          func(session, params);
+        end if;
+      end if;
+    end while;
+  end block;
+end method;
+
 
 define method send-request(session :: <session>,
                            method-name :: <string>,
-                           params :: <object>)
+                           params :: <object>,
+                           #key callback :: false-or(<function>) = #f)
     => ()
   let id = session.id;
   session.id := id + 1;
   let message = make-message(method-name: method-name, id: id);
   message["params"] := params;
+  if (callback)
+    session.callbacks[id] := callback;
+  end if;
   send-raw-message(session, message);
 end method;
 
@@ -193,24 +249,19 @@ define method send-error-response(session :: <session>,
   send-raw-message(session, message);
 end method;
 
-define method send-notification(session :: <session>,
-                                method-name :: <string>,
-                                params :: <object>)
-    => ()
-  let message = make-message(method-name: method-name);
-  if (params)
-    message["params"] := params;
-  end if;
-  send-raw-message(session, message);
-end method;
+define class <stdio-session> (<session>)
+end class;
 
-define method receive-message (session :: <stdio-session>)
-    => (method-name :: <string>, id :: <object>, params :: <object>);
-  let message = read-json-message(*standard-input*);
-  values(element(message, "method", default: ""),
-         element(message, "id", default: #f),
-         element(message, "params", default: #f))
-end method;
+define method send-raw-message(session :: <stdio-session>,
+                               message :: <object>)
+    => ()
+  write-json-message(*standard-output*, message);
+end method send-raw-message;
+
+define method receive-raw-message(session :: <stdio-session>)
+  => (message :: <object>)
+  read-json-message(*standard-input*)
+end method receive-raw-message;
 
 define method flush(session :: <stdio-session>)
     => ()
@@ -280,7 +331,7 @@ define inline method show-info(session :: <session>,
 end method;
 
 define inline method show-log(session :: <session>,
-                        m :: <string>)
+                              m :: <string>)
     => ()
   show-message(session, $message-type-log, m);
 end method;
@@ -347,20 +398,24 @@ end function;
 define function handle-workspace/didChangeConfiguration(session :: <session>,
                                             id :: <object>,
                                             params :: <object>) => ()
-  local-log("Did change configuration");
+  local-log("Did change configuration\n");
   show-info(session, "The config was changed");
 end function;
+
 define function handle-initialized(session :: <session>,
                                             id :: <object>,
                                             params :: <object>) => ()
-  /*
-let hregistration = json("id", "dylan-reg-hover",
-                          "method", "textDocument/hover");
+  /* Commented out because we don't need to do this (yet)
+  let hregistration = json("id", "dylan-reg-hover",
+                           "method", "textDocument/hover");
   let oregistration = json("id", "dylan-reg-open",
-                          "method", "textDocument/didOpen");
-
-  send-request(session, "client/registerCapability", json("registrations", list(hregistration,
-  oregistration)));
+                           "method", "textDocument/didOpen");
+  
+  send-request(session, "client/registerCapability", json("registrations", list(hregistration, oregistration)),
+               callback: method(session, params)
+                           local-log("Callback called back..%s\n", session);
+                           show-info(session, "Thanks la")
+                         end);
 */
   show-info(session, "Dylan LSP server started.");
 end function;
@@ -389,11 +444,9 @@ define function main
       "exit" => session.state := $session-killed;
       otherwise =>
         // Respond to any request with an error, and drop any notifications
-        begin
-          if (id)
-            send-error-response(session, id, $server-not-initialized);
-          end if;
-        end;
+        if (id)
+          send-error-response(session, id, $server-not-initialized);
+        end if;
     end select;
     flush(session);
   end while;
@@ -416,10 +469,6 @@ define function main
           session.state := $session-shutdown;
         end;
       "exit" => session.state := $session-killed;
-      "" => begin
-              // TODO response needs a callback.
-              local-log("Response to %s was %=\n", id, params);
-            end; // it's a response to something we sent!
       otherwise =>
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
