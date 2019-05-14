@@ -10,7 +10,7 @@
 		"url": "https://github.com/pedro-w/lsp-dylan"
 	},
 	"engines": {
-		"vscode": "^1.26.0"
+		"vscode": "^1.33.0"
 	},
 	"scripts": {
 		"compile": "tsc -b",
@@ -41,13 +41,12 @@
 			{
 				"id": "dylan",
 				"aliases": [
-					"Dylan"
+					"Dylan", "dylan"
 				],
 				"extensions": [
 					".dylan",
 					".lid"
-				],
-				"configuration": "./language-configuration.json"
+				]
 			}
 		]
 	},

@@ -30,19 +30,21 @@ export function activate(context: ExtensionContext) {
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for dylan source documents
-		documentSelector: [{ scheme: 'file', language: 'dylan', pattern: '*.dylan' }],
+		documentSelector: [{ scheme: 'file', language: 'dylan' }],
+		synchronize: {configurationSection: 'dylan'}
 	};
 
 	// Create the language client and start the client.
 	client = new LanguageClient(
-		'DylanLanguage',
+		'dylan',
 		'Dylan Language Server',
 		serverOptions,
 		clientOptions
 	);
 	
 	// Start the client. This will also launch the server
-	client.start();
+	let disposable = client.start();
+	context.subscriptions.push(disposable);
 }
 
 export function deactivate(): Thenable<void> | undefined {

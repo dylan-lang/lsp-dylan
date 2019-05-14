@@ -78,6 +78,7 @@ define method read-json-message(stream :: <stream>) => (json :: <object>)
     let content-length = element(hdrs, $content-length, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
+    local-log("RAW:%s", data);
     parse-json(data)
   else
     #f
@@ -92,6 +93,7 @@ define method write-json-message(stream :: <stream>, json :: <object>) => ()
   write(stream, integer-to-string(content-length));
   write(stream, "\r\n\r\n");
   write(stream, str);
+  local-log("RAWS: %s\n", str);
 end method write-json-message;
 
 define constant $session-preinit = 1;
@@ -100,7 +102,7 @@ define constant $session-shutdown = 3;
 define constant $session-killed = 4;
 
 define class <session> (<object>)
-  slot id :: <integer> = 0;
+  slot id :: <integer> = 10000;
   slot state :: <integer> = $session-preinit;
 end class;
 
@@ -164,7 +166,7 @@ define method send-request(session :: <session>,
   let id = session.id;
   session.id := id + 1;
   let message = make-message(method-name: method-name, id: id);
-  message["result"] := params;
+  message["params"] := params;
   send-raw-message(session, message);
 end method;
 
@@ -341,6 +343,54 @@ define function handle-textDocument/didOpen(session :: <session>,
   local-log("File %s of type %s, version %s, length %d\n",
             uri, languageId, version, size(text));
 end function;
+
+define function handle-workspace/didChangeConfiguration(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  local-log("Did change configuration");
+  show-info(session, "The config was changed");
+end function;
+define function handle-initialized(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+  let hregistration = json("id", "dylan-reg-hover",
+                          "method", "textDocument/hover");
+  let oregistration = json("id", "dylan-reg-open",
+                          "method", "textDocument/didOpen");
+                       
+  send-request(session, "client/registerCapability", json("registrations", list(hregistration, 
+  oregistration)));
+  show-info(session, "Dylan LSP server started.");
+end function;
+
+define function handle-initialize(session :: <session>,
+                                            id :: <object>,
+                                            params :: <object>) => ()
+          // TODO set up server based on client capabilities
+          /*
+          let client-capabilities = params["capabilities"];
+          let text-document-capabilities = element(client-capabilities, "textDocument", default: #f);
+          if (text-document-capabilities) 
+            let hover = element(text-document-capabilities, "hover", default: #f);
+            if (hover)
+              let dynamic-registration = element(hover, "dynamicRegistration", default: #f);
+              local-log("hover - dynamic %s\n", dynamic-registration);
+              if (dynamic-registration)
+                // We need to register for it.
+                let registration = json("id", "dylan-reg-hover",
+                                        "method", "textDocument/hover");
+                send-request(session, "client/registerCapability", list(registration));
+              end if;
+            end if;
+          end if;
+          */
+          let capabilities = json("hoverProvider", #t,
+                                  "textDocumentSync", 1,
+                                  "workspaceSymbolProvider", #t);
+          let params = json("capabilities", capabilities);
+          send-response(session, id, params);
+          session.state := $session-active;
+end function;                                            
 define function main
   (name :: <string>, arguments :: <vector>)
   let msg = #f;
@@ -350,17 +400,7 @@ define function main
   while (session.state == $session-preinit)
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "initialize" =>
-        begin
-          // TODO set up server based on client capabilities
-          let capabilities = json("hoverProvider", #t,
-                                  "textDocumentSync", 1,
-                                  "workspaceSymbolProvider", #t);
-          let params = json("capabilities", capabilities);
-          send-response(session, id, params);
-          session.state := $session-active;
-          show-info(session, "Dylan LSP server started.");
-        end;
+      "initialize" => handle-initialize(session, id, params);
       "exit" => session.state := $session-killed;
       otherwise =>
         // Respond to any request with an error, and drop any notifications
@@ -378,9 +418,11 @@ define function main
     select (meth by =)
       "initialize" =>
           send-error-response(session, id, $invalid-request);
+      "initialized" => handle-initialized(session, id, params);
       "workspace/symbol" => handle-workspace/symbol(session, id, params); 
       "textDocument/hover" => handle-textDocument/hover(session, id, params);
       "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
+      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
       // TODO handle all messages here
       "shutdown" =>
         begin
@@ -390,6 +432,9 @@ define function main
           session.state := $session-shutdown;
         end;
       "exit" => session.state := $session-killed;
+      "" => begin
+              local-log("Response to %s was %=\n", id, params);
+            end; // it's a response to something we sent!
       otherwise =>
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
