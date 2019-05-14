@@ -19,16 +19,13 @@ define module lsp-dylan
   use json;
   use threads;
   use operating-system;
-  create
+  export
     <session>,
     <stdio-session>,
     send-request,
-    send-response
+    send-response,
     show-warning,
     show-info,
     show-error,
     show-log;
-    
 end module lsp-dylan;
-
-
