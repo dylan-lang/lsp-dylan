@@ -371,6 +371,14 @@ define function make-position(line, character)
   json("line", line, "character", character);
 end function;
 
+define function decode-position(position)
+ => (line :: <integer>, character :: <integer>)
+  let line = as(<integer>, position["line"]);
+  let character = as(<integer>, position["character"]);
+  values(line, character)
+end function;
+    
+
 define function make-markup(txt, #key markdown = #f)
   let kind = if (markdown)
                "markdown"
@@ -400,7 +408,12 @@ define function handle-textDocument/hover(session :: <session>,
                                           id :: <object>,
                                           params :: <object>) => ()
   // TODO this is only a dummy
-  let hover = json("contents", make-markup("**Hover**\nMore information *can* be provided.", markdown: #t));
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let position = params["position"];
+  let (l, c) = decode-position(position);
+  let txt = format-to-string("Hover %s (%d/%d)", uri, l + 1, c + 1); 
+  let hover = json("contents", make-markup(txt, markdown: #f));
   send-response(session, id, hover);
 end function;
 
@@ -468,6 +481,29 @@ define function handle-initialize(session :: <session>,
           send-response(session, id, params);
           session.state := $session-active;
 end function;
+
+/* Document Management */
+define constant $documents = make(<string-table>);
+// Represents one open file (given to us by textDocument/didOpen)
+define class <open-document> (<object>)
+    slot uri;
+    slot lines;
+end class;
+define function register-file(uri, contents)
+  let lines = split-lines(contents);
+  let doc = make(<open-document>, uri: uri, lines: lines);
+  $documents[uri] := doc;
+end function;
+  
+define function unregister-file(uri)
+  
+end function;
+// get the symbol at the given position
+define method text-at-position(doc :: <open-document>, line, col)
+ => (text :: <string>)
+  let text = doc.lines[line];
+  text;
+end method;
 
 define function main
   (name :: <string>, arguments :: <vector>)

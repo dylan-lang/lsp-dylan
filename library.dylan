@@ -6,6 +6,7 @@ define library lsp-dylan
   use json;
   use system;
   use dylan;
+  use strings;
   export lsp-dylan;
 end library lsp-dylan;
 
@@ -19,6 +20,7 @@ define module lsp-dylan
   use json;
   use threads;
   use operating-system;
+  use strings;
   export
     <session>,
     <stdio-session>,
