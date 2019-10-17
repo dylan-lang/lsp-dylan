@@ -96,7 +96,7 @@ define method write-json-message(stream :: <stream>, json :: <object>) => ()
   write(stream, integer-to-string(content-length));
   write(stream, "\r\n\r\n");
   write(stream, str);
-end method write-json-message;
+end method;
 
 define constant $session-preinit = 1;
 define constant $session-active = 2;
@@ -454,6 +454,11 @@ define function handle-initialized(session :: <session>,
 */
   show-info(session, "Dylan LSP server started.");
   show-info(session, format-to-string("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*));
+  let in-stream = make(<string-stream>);
+  let out-stream = make(<string-stream>, direction: #"output");
+  *server* := start-compiler(in-stream, out-stream);
+  *project* := open-project(*server*, "lsp-dylan");
+  show-info(session, format-to-string("Compiler started:%=, project %=", *server*, *project*));
 end function;
 
 define function handle-initialize(session :: <session>,

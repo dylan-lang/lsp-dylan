@@ -5,7 +5,8 @@
     "tasks": [
         {
 			"type": "npm",
-			"script": "compile",
+            "script": "compile",
+            "label": "$(tools) compile",
 			"group": "build",
 			"presentation": {
 				"panel": "dedicated",
@@ -17,6 +18,7 @@
 		},
         {
             "type": "npm",
+            "label": "$(eye) watch",
             "script": "watch",
             "problemMatcher": [
                 "$tsc-watch"

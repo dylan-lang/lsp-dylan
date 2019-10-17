@@ -7,6 +7,8 @@ define library lsp-dylan
   use system;
   use dylan;
   use strings;
+  use commands;
+  use environment-commands;
   export lsp-dylan;
 end library lsp-dylan;
 
@@ -17,10 +19,14 @@ define module lsp-dylan
   use standard-io;
   use streams;
   use file-system;
+  use locators;
   use json;
   use threads;
   use operating-system;
   use strings;
+  use command-lines;
+  use environment-commands;
+  use commands;
   export
     <session>,
     <stdio-session>,

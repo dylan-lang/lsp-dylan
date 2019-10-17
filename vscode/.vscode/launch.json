@@ -11,7 +11,7 @@
             "name": "Launch Extension",
             "runtimeExecutable": "${execPath}",
             "args": [
-                "${workspaceFolder}/../library.dylan",
+                "${workspaceFolder}/../testproject",
                 "--extensionDevelopmentPath=${workspaceFolder}"
             ],
             "outFiles": [

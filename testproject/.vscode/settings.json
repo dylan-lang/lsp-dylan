@@ -1,0 +1,4 @@
+{
+    "dylan.project": "testproject",
+    "dylan.trace.server": "verbose"
+}
