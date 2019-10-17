@@ -25,11 +25,11 @@ define function headers(stm)
               return(lines)
             else
               lines := pair(as(<string>, chars), lines)
-            end if;
+            end;
           else
             // error case
             return(#f)
-          end if;
+          end;
         end while;
     end block;
   // Then split each line to get the key and value
@@ -41,8 +41,8 @@ define function headers(stm)
         let key = first(kv);
         let value = second(kv);
         headers[key] := value;
-      end if;
-    end for;
+      end;
+    end;
     headers
   else
     #f
@@ -62,7 +62,7 @@ define function json(#rest kvs) => (table :: <string-table>)
     let key = kvs[i];
     let value = kvs[i + 1];
     table[key] := value;
-  end for;
+  end;
   table
 end function;
 
@@ -82,10 +82,10 @@ define method read-json-message(stream :: <stream>) => (json :: <object>)
     let content-length = element(hdrs, $content-length, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
-    parse-json(data)
+    parse-json(data);
   else
     #f
-  end if;
+  end;
 end method read-json-message;
 
 define method write-json-message(stream :: <stream>, json :: <object>) => ()
@@ -121,6 +121,8 @@ define class <session> (<object>)
   // Table of functions keyed by ID. Function signature is:
   // (session :: <session>, params :: object) => ()
   constant slot callbacks = make(<callback-table>);
+  // Root path or URI
+  slot root :: <object> = #f;
 end class;
 
 define generic send-raw-message(session :: <session>,
@@ -165,10 +167,10 @@ define function make-message(#key method-name = #f, id = #f)
   msg["jsonrpc"] := "2.0";
   if (method-name)
     msg["method"] := method-name;
-  end if;
+  end;
   if (id)
     msg["id"] := id
-  end if;
+  end;
   msg
 end function;
 
@@ -179,11 +181,11 @@ define method send-notification(session :: <session>,
   let message = make-message(method-name: method-name);
   if (params)
     message["params"] := params;
-  end if;
+  end;
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send notification '%s'\n", method-name);
-  end if; 
+  end; 
 end method;
 
 /** 
@@ -203,20 +205,20 @@ define method receive-message (session :: <session>)
       if (method-name)
         if (*trace-messages*)
           local-log("Server: receive request '%s'\n", method-name);
-        end if; 
+        end; 
         // Received a request or notification
         return (method-name, id, params);
       else
         // Received a response
         if (*trace-messages*)
           local-log("Server: receive response\n");
-        end if; 
+        end; 
         let func = element(session.callbacks, id, default: #f);
         if (func)
           remove-key!(session.callbacks, id);
           func(session, params);
-        end if;
-      end if;
+        end;
+      end;
     end while;
   end block;
 end method;
@@ -230,7 +232,9 @@ define method send-request(session :: <session>,
   let id = session.id;
   session.id := id + 1;
   let message = make-message(method-name: method-name, id: id);
-  message["params"] := params;
+  if (params)
+    message["params"] := params;
+  end if;
   if (callback)
     session.callbacks[id] := callback;
   end if;
@@ -249,7 +253,7 @@ define method send-response(session :: <session>,
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send response\n");
-  end if; 
+  end; 
 end method;
 
 define method send-error-response(session :: <session>,
@@ -268,7 +272,7 @@ define method send-error-response(session :: <session>,
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send error response\n");
-  end if; 
+  end; 
 end method;
 
 define class <stdio-session> (<session>)
@@ -278,12 +282,12 @@ define method send-raw-message(session :: <stdio-session>,
                                message :: <object>)
     => ()
   write-json-message(*standard-output*, message);
-end method send-raw-message;
+end method;
 
 define method receive-raw-message(session :: <stdio-session>)
   => (message :: <object>)
   read-json-message(*standard-input*)
-end method receive-raw-message;
+end method;
 
 define method flush(session :: <stdio-session>)
     => ()
@@ -319,7 +323,7 @@ define function default-error-message(code :: <integer>)
     $content-modified => "Content modified";
     otherwise => "(code not defined)"
   end select;
-end function default-error-message;
+end function;
 
 define constant $message-type-error = 1;
 define constant $message-type-warning = 2;
@@ -370,6 +374,12 @@ end function;
 define function make-position(line, character)
   json("line", line, "character", character);
 end function;
+
+// make a location that's a single character
+define function make-location(doc, line, character)
+  let pos = make-position(line, character);
+  json("uri", doc, "range", make-range(pos, pos))
+end;
 
 define function decode-position(position)
  => (line :: <integer>, character :: <integer>)
@@ -428,6 +438,23 @@ define function handle-textDocument/didOpen(session :: <session>,
   let text = textDocument["text"];
   local-log("File %s of type %s, version %s, length %d\n",
             uri, languageId, version, size(text));
+  //register-file(uri, text);
+end function;
+
+define function handle-textDocument/definition(session :: <session>,
+                                               id :: <object>,
+                                               params :: <object>) => ()
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let position = params["position"];
+  let (l, c) = decode-position(position);
+  let doc = element($documents, uri, default: #f);
+  let symbol = if (doc) text-at-position(doc, l, c) else "Cheese" end;
+  let (doc, line, char) = lookup-symbol(session, symbol);
+  doc := uri;
+  let location = make-location(doc, line, char);
+  local-log(">>%s<<\n", location); 
+  send-response(session, id, location);
 end function;
 
 define function handle-workspace/didChangeConfiguration(session :: <session>,
@@ -459,32 +486,39 @@ define function handle-initialized(session :: <session>,
   *server* := start-compiler(in-stream, out-stream);
   *project* := open-project(*server*, "lsp-dylan");
   show-info(session, format-to-string("Compiler started:%=, project %=", *server*, *project*));
+  // Test code
+  send-request(session, "workspace/workspaceFolders", #f);
 end function;
 
 define function handle-initialize(session :: <session>,
-                                            id :: <object>,
-                                            params :: <object>) => ()
-          let trace = element(params, "trace", default: "off");
-          select (trace by \=)
-          "off" => begin
-            *trace-messages* := #f;
-            *trace-verbose* := #f;
-            end;
-          "messages" => begin
-            *trace-messages* := #t;
-            *trace-verbose* := #f;
-            end;
-          "verbose" => begin
-            *trace-messages* := #t;
-            *trace-verbose* := #t;
-            end;
-          end select;
-          let capabilities = json("hoverProvider", #t,
-                                  "textDocumentSync", 1,
-                                  "workspaceSymbolProvider", #t);
-          let params = json("capabilities", capabilities);
-          send-response(session, id, params);
-          session.state := $session-active;
+                                  id :: <object>,
+                                  params :: <object>) => ()
+  let trace = element(params, "trace", default: "off");
+  select (trace by \=)
+    "off" => begin
+               *trace-messages* := #f;
+               *trace-verbose* := #f;
+             end;
+    "messages" => begin
+                    *trace-messages* := #t;
+                    *trace-verbose* := #f;
+                  end;
+    "verbose" => begin
+                   *trace-messages* := #t;
+                   *trace-verbose* := #t;
+                 end;
+  end select;
+  // Save the workspace root (if provided) for later.
+  session.root := element(params, "rootUri", default: #f) | element(params, "rootPath", default: #f);
+  // Return the capabilities of this server
+  let capabilities = json("hoverProvider", #f,
+                          "textDocumentSync", 1,
+                          "definitionProvider", #t,
+                          "workspaceSymbolProvider", #t);
+  let response-params = json("capabilities", capabilities);
+  send-response(session, id, response-params);
+  // All OK to proceed.
+  session.state := $session-active;
 end function;
 
 /* Document Management */
@@ -497,11 +531,11 @@ end class;
 define function register-file(uri, contents)
   let lines = split-lines(contents);
   let doc = make(<open-document>, uri: uri, lines: lines);
-  $documents[uri] := doc;
+  $documents[doc.uri] := doc;
 end function;
   
 define function unregister-file(uri)
-  
+  // TODO
 end function;
 // get the symbol at the given position
 define method text-at-position(doc :: <open-document>, line, col)
@@ -509,6 +543,11 @@ define method text-at-position(doc :: <open-document>, line, col)
   let text = doc.lines[line];
   text;
 end method;
+
+define function lookup-symbol(session, symbol) => (doc, l, c)
+  local-log("Looking up %s\n", symbol);
+  values("burp", 1, 1)
+end;
 
 define function main
   (name :: <string>, arguments :: <vector>)
@@ -544,6 +583,7 @@ define function main
       "workspace/symbol" => handle-workspace/symbol(session, id, params);
       "textDocument/hover" => handle-textDocument/hover(session, id, params);
       "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
+      "textDocument/definition" => handle-textDocument/definition(session, id, params);
       "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
       // TODO handle all other messages here
       "shutdown" =>
