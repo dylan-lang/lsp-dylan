@@ -5,7 +5,8 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
-import { workspace, ExtensionContext } from 'vscode';
+import { ExtensionContext } from 'vscode';
+// import { workspace, ExtensionContext } from 'vscode';
 
 import {
 	LanguageClient,
@@ -15,12 +16,12 @@ import {
 
 let client: LanguageClient;
 
-export function activate(context: ExtensionContext) {
+export function activate(context: ExtensionContext): void {
 	// The server is implemented in node
-	let serverExe = context.asAbsolutePath(
+	const serverExe = context.asAbsolutePath(
 		path.join('..', '_build', 'bin', 'lsp-dylan')
 	);
-	let serverOptions: ServerOptions = {
+	const serverOptions: ServerOptions = {
 		run: {
 			command: serverExe
 		},
@@ -28,7 +29,7 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
+	const clientOptions: LanguageClientOptions = {
 		// Register the server for dylan source documents
 		documentSelector: [{ scheme: 'file', language: 'dylan' }],
 		synchronize: {configurationSection: 'dylan'}
@@ -43,7 +44,7 @@ export function activate(context: ExtensionContext) {
 	);
 	
 	// Start the client. This will also launch the server
-	let disposable = client.start();
+	const disposable = client.start();
 	context.subscriptions.push(disposable);
 }
 
