@@ -8,7 +8,7 @@ the LSP.  Note that this project includes a git submodule for
 json. This adds `null` handling and a method to output json as a
 string to the open-dylan/json project.
 
-We are currently using version [3.14 of the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-3-14/)
+We are currently using version [3.15 of the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/)
 
 ## Usage
 
@@ -22,7 +22,7 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 The file `setup.el` is used just to avoid making any changes to the
 user's `.emacs`.
 
-Testing with VS Code (1.38.1 on macos)
+Testing with VS Code (1.45.0 on macos)
 
 1. Open the `vscode` folder in VS Code
 1. First time only, `npm install` to get the dependencies

@@ -6,7 +6,6 @@
 
 import * as path from 'path';
 import { ExtensionContext } from 'vscode';
-// import { workspace, ExtensionContext } from 'vscode';
 
 import {
 	LanguageClient,
@@ -17,7 +16,7 @@ import {
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext): void {
-	// The server is implemented in node
+	// The server is implemented in dylan native code
 	const serverExe = context.asAbsolutePath(
 		path.join('..', '_build', 'bin', 'lsp-dylan')
 	);

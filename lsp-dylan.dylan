@@ -414,6 +414,11 @@ define function handle-workspace/symbol (session :: <session>,
   send-response(session, id, symbols);
 end function;
 
+/* Show information about a symbol when we hover the cursor over it
+See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
+Parameters: textDocument, position, (optional) workDoneToken 
+Returns: contents, (optional) range
+*/
 define function handle-textDocument/hover(session :: <session>,
                                           id :: <object>,
                                           params :: <object>) => ()
@@ -421,8 +426,10 @@ define function handle-textDocument/hover(session :: <session>,
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
-  let (l, c) = decode-position(position);
-  let txt = format-to-string("Hover %s (%d/%d)", uri, l + 1, c + 1); 
+  let (line, column) = decode-position(position);
+  let doc = $documents[uri];
+  let symbol = symbol-at-position(doc, line, column);
+  let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1); 
   let hover = json("contents", make-markup(txt, markdown: #f));
   send-response(session, id, hover);
 end function;
@@ -436,10 +443,16 @@ define function handle-textDocument/didOpen(session :: <session>,
   let languageId = textDocument["languageId"];
   let version = textDocument["version"];
   let text = textDocument["text"];
-  local-log("File %s of type %s, version %s, length %d\n",
+  local-log("textDocument/didOpen: File %s of type %s, version %s, length %d\n",
             uri, languageId, version, size(text));
-  //register-file(uri, text);
+  // Only bother about dylan files for now.  
+  if (languageId = "dylan") 
+    register-file(uri, text);
+  end if
 end function;
+
+// Go to definition:
+// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 
 define function handle-textDocument/definition(session :: <session>,
                                                id :: <object>,
@@ -449,7 +462,7 @@ define function handle-textDocument/definition(session :: <session>,
   let position = params["position"];
   let (l, c) = decode-position(position);
   let doc = element($documents, uri, default: #f);
-  let symbol = if (doc) text-at-position(doc, l, c) else "Cheese" end;
+  let symbol = if (doc) symbol-at-position(doc, l, c) else "Cheese" end;
   let (doc, line, char) = lookup-symbol(session, symbol);
   doc := uri;
   let location = make-location(doc, line, char);
@@ -483,8 +496,10 @@ define function handle-initialized(session :: <session>,
   show-info(session, format-to-string("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*));
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
+/*
   *server* := start-compiler(in-stream, out-stream);
   *project* := open-project(*server*, "lsp-dylan");
+*/
   show-info(session, format-to-string("Compiler started:%=, project %=", *server*, *project*));
   // Test code
   send-request(session, "workspace/workspaceFolders", #f);
@@ -511,7 +526,7 @@ define function handle-initialize(session :: <session>,
   // Save the workspace root (if provided) for later.
   session.root := element(params, "rootUri", default: #f) | element(params, "rootPath", default: #f);
   // Return the capabilities of this server
-  let capabilities = json("hoverProvider", #f,
+  let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
@@ -525,26 +540,48 @@ end function;
 define constant $documents = make(<string-table>);
 // Represents one open file (given to us by textDocument/didOpen)
 define class <open-document> (<object>)
-    slot uri;
-    slot lines;
+    constant slot uri, required-init-keyword: uri:;
+    slot lines, required-init-keyword: lines:;
 end class;
+
 define function register-file(uri, contents)
   let lines = split-lines(contents);
+  local-log("register-file: %s, lines: %d\n", uri, size(lines)); 
   let doc = make(<open-document>, uri: uri, lines: lines);
-  $documents[doc.uri] := doc;
+  $documents[uri] := doc;
 end function;
-  
+
+/* Given a document and a position, find the symbol that this position is within 
+If the position is on a space, just return ""
+*/
+define function symbol-at-position(doc :: <open-document>, line, column) => (symbol :: <string>)
+  let line = doc.lines[line];
+  local method any-character?(c) => (well? :: <boolean>)
+          member?(c, "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=")
+        end;
+  if (any-character?(line[column]))
+    let symbol-start = column;
+    let symbol-end = column;
+    while (symbol-start >= 0 & any-character?(line[symbol-start]))
+      symbol-start := symbol-start - 1;
+    end while;
+    while (symbol-end < size(line) & any-character?(line[symbol-end]))
+      symbol-end := symbol-end + 1;
+    end while;
+    copy-sequence(line, start: symbol-start + 1, end: symbol-end)
+  else
+    // Hovered over some 'punctuation'
+    ""
+  end if
+end function;
+
 define function unregister-file(uri)
   // TODO
 end function;
-// get the symbol at the given position
-define method text-at-position(doc :: <open-document>, line, col)
- => (text :: <string>)
-  let text = doc.lines[line];
-  text;
-end method;
 
-define function lookup-symbol(session, symbol) => (doc, l, c)
+// Look up a symbol. Return the containing doc,
+// the line and column
+define function lookup-symbol(session, symbol) => (doc, line, column)
   local-log("Looking up %s\n", symbol);
   values("burp", 1, 1)
 end;

@@ -14,7 +14,7 @@ define variable *project* = #f;
 define function start-compiler(input-stream, output-stream)
   make-environment-command-line-server(input-stream: input-stream,
                                        output-stream: output-stream)
-end function start-compiler;
+end function;
 
 // Execute a single 'command-line' style command on the server
 define function run-compiler(server, string :: <string>) => ()
