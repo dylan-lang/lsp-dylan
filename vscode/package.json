@@ -16,7 +16,8 @@
 		"compile": "tsc -b",
 		"watch": "tsc -b -w",
 		"update-vscode": "vscode-install",
-		"postinstall": "vscode-install"
+		"postinstall": "vscode-install",
+		"lint": "eslint **/*.ts"
 	},
 	"activationEvents": [
 		"onLanguage:dylan"
@@ -61,11 +62,11 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "^7.0.2",
-		"@types/node": "^13.13.4",
-		"@types/vscode": "^1.44.0",
-		"@typescript-eslint/eslint-plugin": "^2.30.0",
-		"@typescript-eslint/parser": "^2.30.0",
+		"@types/node": "^13.13.6",
+		"@types/vscode": "^1.45.0",
+		"@typescript-eslint/eslint-plugin": "^2.33.0",
+		"@typescript-eslint/parser": "^2.33.0",
 		"eslint": "^6.8.0",
-		"typescript": "^3.8.3"
+		"typescript": "^3.9.2"
 	}
 }
