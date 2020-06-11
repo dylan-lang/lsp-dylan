@@ -10,28 +10,48 @@ import { ExtensionContext } from 'vscode';
 import {
 	LanguageClient,
 	LanguageClientOptions,
-	ServerOptions
+	ServerOptions,
+	ExecutableOptions
 } from 'vscode-languageclient';
 
 let client: LanguageClient;
+// TODO - get from env?
+function user_registries() {
+	return ["/Users/peterhull/registry"].join(';');
+}
 
 export function activate(context: ExtensionContext): void {
 	// The server is implemented in dylan native code
 	const serverExe = context.asAbsolutePath(
 		path.join('..', '_build', 'bin', 'lsp-dylan')
 	);
+
+	const openDylanRelease =
+		// HACK - should find the real dylan-compiler or allow
+		// to be overridden
+		path.join(path.dirname('/opt/local/2019.2pre/bin/dylan-compiler'), '..');
+	const runOptions: ExecutableOptions = {
+		env: {
+			...process.env, OPEN_DYLAN_RELEASE: openDylanRelease,
+			OPEN_DYLAN_USER_REGISTRIES: user_registries()
+		}
+	}
 	const serverOptions: ServerOptions = {
 		run: {
-			command: serverExe
+			command: serverExe,
+			options: runOptions
 		},
-		debug: { command: serverExe, args: ['--debug'] }
+		debug: {
+			command: serverExe, args: ['--debug'],
+			options: runOptions
+		}
 	};
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
 		// Register the server for dylan source documents
 		documentSelector: [{ scheme: 'file', language: 'dylan' }],
-		synchronize: {configurationSection: 'dylan'}
+		synchronize: { configurationSection: 'dylan' }
 	};
 
 	// Create the language client and start the client.
@@ -41,7 +61,7 @@ export function activate(context: ExtensionContext): void {
 		serverOptions,
 		clientOptions
 	);
-	
+
 	// Start the client. This will also launch the server
 	const disposable = client.start();
 	context.subscriptions.push(disposable);

@@ -9,6 +9,12 @@ define library lsp-dylan
   use strings;
   use commands;
   use environment-commands;
+  use environment-protocols;
+  use registry-projects;
+  use build-system;
+  use dfmc-reader;
+  use source-records;
+  use file-source-records;
   export lsp-dylan;
 end library lsp-dylan;
 
@@ -26,7 +32,17 @@ define module lsp-dylan
   use strings;
   use command-lines;
   use environment-commands;
+  use environment-protocols, exclude: {
+                                       open-project,
+                                       application-filename,
+                                       application-arguments,
+                                       run-application};
   use commands;
+  use registry-projects;
+  use build-system;
+  use dfmc-reader;
+  use source-records;
+  use file-source-records;
   export
     <session>,
     <stdio-session>,

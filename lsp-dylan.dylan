@@ -4,8 +4,11 @@ Author: Peter
 Copyright: 2019
 
 // Options etc.
+// Server started with --debug command line option?
 define variable *debug-mode* :: <boolean> = #f;
+// LSP client asked to trace messages?
 define variable *trace-messages* :: <boolean> = #f;
+// LSP client asked to trace in more detail?
 define variable *trace-verbose* :: <boolean> = #f;
 // Headers for the JSONRPC call
 define variable $content-length = "Content-Length";
@@ -162,6 +165,7 @@ define generic receive-message (session :: <session>)
 define generic flush(session :: <session>)
   => ();
 
+// Make the 'skeleton' on a JSONRPC 2.0 message.
 define function make-message(#key method-name = #f, id = #f)
   let msg = make(<string-table>);
   msg["jsonrpc"] := "2.0";
@@ -294,7 +298,7 @@ define method flush(session :: <stdio-session>)
   force-output(*standard-output*);
 end method;
 
-// Error codes.
+// Error codes. (defined by LSP)
 let $parse-error :: <integer> = -32700;
 let $invalid-request :: <integer> = -32600;
 let $method-not-found :: <integer> = -32601;
@@ -398,7 +402,28 @@ define function make-markup(txt, #key markdown = #f)
   json("value", txt,
        "kind", kind);
 end function;
-
+/*
+define function list-all-package-names ()
+  let res = #();
+  local method collect-project
+            (dir :: <pathname>, filename :: <string>, type :: <file-type>)
+          if (type == #"file")
+            local-log("P:%=\n", filename);
+            if (last(filename) ~= '~')
+              res := pair(filename, res);
+            end;
+          end;
+        end;
+  let regs = find-registries(as(<string>, target-platform-name()));
+  let reg-paths = map(registry-location, regs);
+  for (reg-path in reg-paths)
+    if (file-exists?(reg-path))
+      do-directory(collect-project, reg-path);
+    end;
+  end;
+  res
+end;
+*/
 define function handle-workspace/symbol (session :: <session>,
                                          id :: <object>,
                                          params :: <object>)
@@ -493,16 +518,21 @@ define function handle-initialized(session :: <session>,
                          end);
 */
   show-info(session, "Dylan LSP server started.");
-  show-info(session, format-to-string("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*));
+  local-log("debug: %s, messages: %s, verbose: %s\n", *debug-mode*, *trace-messages*, *trace-verbose*);
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
-/*
-  *server* := start-compiler(in-stream, out-stream);
-  *project* := open-project(*server*, "lsp-dylan");
-*/
-  show-info(session, format-to-string("Compiler started:%=, project %=", *server*, *project*));
+
   // Test code
+  local-log("Env O-D-R=%s, PATH=%s\n",
+            environment-variable("OPEN_DYLAN_RELEASE"),
+            environment-variable("PATH"));
   send-request(session, "workspace/workspaceFolders", #f);
+  *server* := start-compiler(in-stream, out-stream);
+  // TODO don't hard-code the project name and module name.
+  *project* := open-project(*server*, "testproject");
+  *module* := "testproject";
+  local-log("Compiler started:%=, project %=\n", *server*, *project*);
+  local-log("Database: %=\n", project-compiler-database(*project*));
 end function;
 
 define function handle-initialize(session :: <session>,
@@ -555,6 +585,7 @@ end function;
 If the position is on a space, just return ""
 */
 define function symbol-at-position(doc :: <open-document>, line, column) => (symbol :: <string>)
+  local-log("symbol at (%d, %d) with %d\n", line, column, doc.lines.size);
   let line = doc.lines[line];
   local method any-character?(c) => (well? :: <boolean>)
           member?(c, "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=")
@@ -582,8 +613,12 @@ end function;
 // Look up a symbol. Return the containing doc,
 // the line and column
 define function lookup-symbol(session, symbol) => (doc, line, column)
-  local-log("Looking up %s\n", symbol);
-  values("burp", 1, 1)
+  let loc = symbol-location (symbol);
+  let (name, line) = source-line-location(loc.source-location-source-record,
+                                          loc.source-location-start-line);
+  let column = loc.source-location-start-column;
+  local-log("Looking up %s and got %=\nGoing to %= (%=, %=)\n", symbol, loc, name, line, column);
+  values(name, line - 1, column)
 end;
 
 define function main
