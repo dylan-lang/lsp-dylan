@@ -3,20 +3,26 @@ Module: dylan-user
 define library lsp-dylan
   use common-dylan;
   use io;
+  use network;
+  use lisp-reader;
   use json;
   use system;
   use dylan;
   use strings;
-  use commands;
   use environment-commands;
   use environment-protocols;
-  use registry-projects;
   use build-system;
+  use commands;
+  use environment-internal-commands;
   use dfmc-reader;
   use source-records;
   use file-source-records;
-  export lsp-dylan;
-end library lsp-dylan;
+  use system;
+  use registry-projects;
+  //use stack-walker;
+  use release-info;
+  use dfmc-back-end-implementations;
+end library;
 
 define module lsp-dylan
   use common-dylan;
@@ -43,13 +49,4 @@ define module lsp-dylan
   use dfmc-reader;
   use source-records;
   use file-source-records;
-  export
-    <session>,
-    <stdio-session>,
-    send-request,
-    send-response,
-    show-warning,
-    show-info,
-    show-error,
-    show-log;
 end module lsp-dylan;

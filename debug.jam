@@ -1,0 +1,3 @@
+CCFLAGS = -O0 -g ;
+
+include $(SYSTEM_BUILD_SCRIPTS)/x86_64-linux-build.jam ;

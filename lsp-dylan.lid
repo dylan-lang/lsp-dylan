@@ -1,4 +1,6 @@
 Library: lsp-dylan
 Files: library
-       lsp-dylan
+       lsp-internal
        compiler
+       jsonrpc
+       lsp-dylan

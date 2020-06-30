@@ -2,10 +2,11 @@
 (require 'lsp-mode)
 (setq lsp-print-io t)
 (setq lsp-enable-snippet nil)
+(setq lsp-server-trace "verbose")
 
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
-(let ((server (expand-file-name "_build/bin/lsp-dylan"
-				(file-name-directory load-file-name))))
+(let ((server (list (expand-file-name "_build/bin/lsp-dylan"
+				 (file-name-directory load-file-name)) "--debug")))
   (lsp-register-client
    (make-lsp-client :new-connection (lsp-stdio-connection server)
                     :major-modes '(dylan-mode)
