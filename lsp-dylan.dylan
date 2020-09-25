@@ -78,7 +78,7 @@ define function decode-position(position)
   let character = as(<integer>, position["character"]);
   values(line, character)
 end function;
-    
+
 /*
  * Create a MarkupContent object.
  * See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
@@ -110,7 +110,7 @@ end function;
 
 /* Show information about a symbol when we hover the cursor over it
  * See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
- * Parameters: textDocument, position, (optional) workDoneToken 
+ * Parameters: textDocument, position, (optional) workDoneToken
  * Returns: contents, (optional) range
  */
 define function handle-textDocument/hover(session :: <session>,
@@ -124,7 +124,7 @@ define function handle-textDocument/hover(session :: <session>,
   let doc = $documents[uri];
   let symbol = symbol-at-position(doc, line, column);
   if (symbol)
-    let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1); 
+    let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1);
     let hover = json("contents", make-markup(txt, markdown: #f));
     send-response(session, id, hover);
   else
@@ -144,10 +144,18 @@ define function handle-textDocument/didOpen(session :: <session>,
   let text = textDocument["text"];
   local-log("textDocument/didOpen: File %s of type %s, version %s, length %d\n",
             uri, languageId, version, size(text));
-  // Only bother about dylan files for now.  
-  if (languageId = "dylan") 
+  // Only bother about dylan files for now.
+  if (languageId = "dylan")
     register-file(uri, text);
-  end if
+  end if;
+  // Let's see if we can find a module
+  let u = as(<url>, uri);
+  let f = make-file-locator(u);
+  let (m, l) = file-module(*project*, f);
+  local-log("File: %=\nModule: %=, Library: %=\n",
+            as(<string>, f),
+            if (m) environment-object-primitive-name(*project*, m) else "?" end,
+            if (l) environment-object-primitive-name(*project*, l) else "?" end);
 end function;
 
 // Go to definition:
@@ -177,6 +185,21 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   local-log("Did change configuration\n");
   show-info(session, "The config was changed");
 end function;
+define function deo(l :: <file-locator>) => ()
+  local-log("%= %= %= %=\n",
+            as(<string>, l),
+            locator-path(l),
+            locator-name(l),
+            locator-relative?(l));
+end;
+
+define function trailing-slash(s :: <string>) => (s-with-slash :: <string>)
+  if (s[s.size - 1] = '/')
+    s
+  else
+    concatenate(s, "/")
+  end
+end;
 
 define function handle-initialized(session :: <session>,
                                             id :: <object>,
@@ -186,7 +209,7 @@ define function handle-initialized(session :: <session>,
                            "method", "textDocument/hover");
   let oregistration = json("id", "dylan-reg-open",
                            "method", "textDocument/didOpen");
-  
+
   send-request(session, "client/registerCapability", json("registrations", list(hregistration, oregistration)),
                callback: method(session, params)
                            local-log("Callback called back..%s\n", session);
@@ -206,7 +229,30 @@ define function handle-initialized(session :: <session>,
   *server* := start-compiler(in-stream, out-stream);
   // TODO don't hard-code the project name and module name.
   *project* := open-project(*server*, "testproject");
+    // Let's see if we can find a module
+  let (m, l) = file-module(*project*, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
+  local-log("Try\nModule: %=, Library: %=\n",
+            if (m) environment-object-primitive-name(*project*, m) else "?" end,
+            if (l) environment-object-primitive-name(*project*, l) else "?" end);
+
   *module* := "testproject";
+  let myfile = as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
+  deo(myfile);
+  for (s in project-sources(*project*))
+    let rl = source-record-location(s);
+    local-log("Source: %= of %= in %= %s\n",
+              s,
+              object-class(s),
+              as(<string>, rl),
+              if (myfile = rl) "yes" else "no" end);
+    deo(rl);
+  end;
+  do-project-file-libraries(method(l, r)
+                                local-log("Lib:%= Rec:%=\n", l, r);
+                            end,
+                            *project*,
+                            as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan"));
+//  local-log("dylan-sources:%=\n", project-dylan-sources(*project*));
   local-log("Compiler started:%=, project %=\n", *server*, *project*);
   local-log("Database: %=\n", project-compiler-database(*project*));
 one-off-debug();
@@ -235,17 +281,20 @@ define function handle-initialize (session :: <session>,
   // TODO: can root-uri be something that's not a file:// URL?
   let root-uri  = element(params, "rootUri", default: #f);
   if (root-uri)
-    session.root = locator-directory(as(<url>, root-uri));
+    let url = as(<url>, trailing-slash(root-uri));
+    let dir = make(<directory-locator>, path: locator-path(url));
+    session.root := dir;
   else
     let root-path = element(params, "rootPath", default: #f);
     if (root-path)
-      session.root = as(<directory-locator>, root-path);
+      session.root := as(<directory-locator>, root-path);
     end;
   end;
   // Set CWD
   if (session.root)
-    working-directory() := as(<directory-locator>, session.root);
+    working-directory() := session.root;
   end;
+  local-log("Working directory is now:%s\n", as(<string>, working-directory()));
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
                           "textDocumentSync", 1,
@@ -267,12 +316,12 @@ end class;
 
 define function register-file (uri, contents)
   let lines = split-lines(contents);
-  local-log("register-file: %s, lines: %d\n", uri, size(lines)); 
+  local-log("register-file: %s, lines: %d\n", uri, size(lines));
   let doc = make(<open-document>, uri: uri, lines: lines);
   $documents[uri] := doc;
 end function;
 
-/* Given a document and a position, find the symbol that this position is within 
+/* Given a document and a position, find the symbol that this position is within
 If the position not on a symbol, return #f
 */
 define function symbol-at-position (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
@@ -305,12 +354,13 @@ define function unregister-file(uri)
   // TODO
 end function;
 
-/* 
+/*
  * Make a file:// URI from a local file path.
  * This is supposed to follow RFC 8089
  * (locators library not v. helpful here)
  */
-define function make-file-uri (f :: <file-locator>) => (<uri :: <url>)
+define function make-file-uri (f :: <file-locator>)
+ => (uri :: <url>)
   if (f.locator-relative?)
     f := merge-locators(f, working-directory());
   end;
@@ -321,6 +371,14 @@ define function make-file-uri (f :: <file-locator>) => (<uri :: <url>)
   make(<file-url>,
        directory: directory,
        name: locator-name(f))
+end;
+
+define function make-file-locator (f :: <url>)
+ => (loc :: <file-locator>)
+  /* TODO - what if it isnt a file:/, etc etc */
+  let d = make(<directory-locator>, path: locator-path(f));
+  format-out("dir:%=", d);
+  make(<file-locator>, directory: d, name: locator-name(f))
 end;
 
 // Look up a symbol. Return the containing doc,
