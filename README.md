@@ -22,6 +22,8 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 The file `setup.el` is used just to avoid making any changes to the
 user's `.emacs`.
 
+You must set `OPEN_DYLAN_RELEASE` and `OPEN_DYLAN_USER_REGISTRIES` appropriately.
+
 Testing with VS Code (1.45.0 on macos)
 
 1. Open the `vscode` folder in VS Code
