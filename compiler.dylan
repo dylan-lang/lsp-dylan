@@ -38,8 +38,8 @@ define function describe-symbol (symbol-name)
   environment-object-description(*project*, env, *module*)
 end;
 
-define function symbol-location (symbol-name)
-  let env = symbol-name & get-environment-object(symbol-name);
+define function symbol-location (symbol-name, #key module = #f)
+  let env = symbol-name & get-environment-object(symbol-name, module: module);
   if (env)
     environment-object-source-location(*project*, env)
   else
@@ -67,11 +67,18 @@ end;
 
 define function one-off-debug()
   //list-all-package-names();
-  let project = *project*;
-  let symbol-name = "testproject:zeor";
+  let in-stream = make(<string-stream>);
+  let out-stream = make(<string-stream>, direction: #"output");
+  let srv = start-compiler(in-stream, out-stream);
+  let project = open-project(srv, "testproject");
+  local-log("Database: %=\n", project-compiler-database(project));
+
+  *project* := project;
+  *server* := srv;
+  let symbol-name = "zeor";
   let library = project-library(project);
   let module = find-module(project, "testproject", library: library);
-
+let loc = environment-object-source-location(project, module).source-location-source-record;
   let env = find-environment-object(project,
                                     symbol-name,
                                     library: library,
@@ -82,56 +89,51 @@ define function one-off-debug()
             n(library),
             n(module),
             n(env));
-
+  let fp = as(<file-locator>, "/Users/peterhull/Projects/lsp-dylan/testproject/library.dylan");
+  let pfl = source-record-location(loc);
+//  fp := "testproject.dylan";
+//  fp := pfl;
+  let (m, l) = file-module(project, fp);
+  local-log("one-off-debug:\n1. %=\n2. %=\n3. %=\n", n(fp), n(m), n(l));
+  let same? = pfl = fp;
+  local-log("one-off-debug:\n1. %=\n2. %=\n",
+            locator-relative?(fp),
+            locator-relative?(pfl));
+  local-log("one-off-debug:\n1. %=\n2. %=\n",
+            locator-base(fp),
+            locator-base(pfl));
+  local-log("one-off-debug:\n1. %=\n2. %=\n",
+            locator-extension(fp),
+            locator-extension(pfl));
+  local-log("one-off-debug:\n1. %=\n2. %=\n3.%=\n",
+            locator-path(fp),
+            locator-path(pfl),
+            same?);
 end;
 
 define method n (x :: <environment-object>)
   // for debugging!
-  print-environment-object-to-string(*project*, x);
+  let s = print-environment-object-to-string(*project*, x);
+  format-to-string("%s%s", object-class(x), s);
 end;
 define method n (x :: <string>)
   format-to-string("\"%s\"", x)
 end;
+define method n (x :: <locator>)
+  format-to-string("locator:\"%s\"", as(<string>, x))
+end;
 define method n ( x == #f)
   "#f"
 end;
-define function get-environment-object (symbols)
-  let env = split(symbols, ":");
-  let symbol-name = env[0];
-  let library = #f;
-  let module = #f;
-  let project = #f;
+define function get-environment-object (symbol-name, #key module = #f)
+  let library = project-library(*project*);
+  unless (module)
+    // TODO not hard code
+    module := find-module(*project*, "testproject", library: library);
+  end;
+  local-log("%s -> module is %s\n", symbol-name, n(module));
 
-  if (env.size == 3)
-    project := *project*;
-    library := find-library(project, env[2]);
-    module := find-module(project, env[1], library: library);
-  end;
-  *module* := "testproject";
-  local method check-and-set-module (p, lib)
-          unless(module)
-            module := find-module(p, *module*, library: lib);
-            if (module)
-              library := lib;
-            end;
-          end;
-        end;
-  for(p in open-projects())
-    unless (project)
-      check-and-set-module(p, project-library(p));
-      do-project-used-libraries(curry(check-and-set-module, p), p, p);
-      if (library)
-        project := p;
-      end;
-    end;
-  end;
-  if (env.size == 1)
-    *project* := project;
-    *library* := library;
-    *module* := module;
-  end;
-
-  find-environment-object(project, symbol-name,
+  find-environment-object(*project*, symbol-name,
                                     library: library,
                                     module: module);
 end;

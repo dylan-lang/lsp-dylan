@@ -1,10 +1,10 @@
 Module: testproject
 Synopsis: 
 Author: 
-Copyright: 
+Copyright: 2020
 
 define function zeor (q) 
-format-out("Z:%=\n", q);
+format-out("Z%=\n", q);
 end;
 
 define function another(k)

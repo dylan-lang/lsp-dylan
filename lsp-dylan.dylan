@@ -161,12 +161,22 @@ define function handle-textDocument/definition(session :: <session>,
   let position = params["position"];
   let (l, c) = decode-position(position);
   let doc = element($documents, uri, default: #f);
-  let symbol = if (doc) symbol-at-position(doc, l, c) else "Cheese" end;
-  let (doc, line, char) = lookup-symbol(session, symbol);
   let location = #f;
   if (doc)
-    let uri = make-file-uri(doc); // TODO
-    location := make-location(as(<string>, uri), line, char);
+    unless (doc.document-module)
+      let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
+      let local-file = make(<file-locator>, directory: local-dir,
+                            name: locator-name(doc.document-uri));
+      local-log("local-dir=%s\nlocal-file=%s\n", as(<string>, local-dir),
+                as(<string>, local-file));
+      doc.document-module := file-module(*project*, local-file);
+    end;
+    let symbol = symbol-at-position(doc, l, c);
+    let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
+    if (target)
+      let uri = make-file-uri(target); // TODO
+      location := make-location(as(<string>, uri), line, char);
+    end;
   end;
   send-response(session, id, location);
 end function;
@@ -209,7 +219,14 @@ define function handle-initialized(session :: <session>,
   *module* := "testproject";
   local-log("Compiler started:%=, project %=\n", *server*, *project*);
   local-log("Database: %=\n", project-compiler-database(*project*));
-one-off-debug();
+end function;
+
+define function add-trailing-slash(s :: <string>) => (s-slash :: <string>)
+  if (last(s) = '/')
+    s
+  else
+    concatenate(s, "/")
+  end;
 end function;
 
 define function handle-initialize (session :: <session>,
@@ -235,17 +252,20 @@ define function handle-initialize (session :: <session>,
   // TODO: can root-uri be something that's not a file:// URL?
   let root-uri  = element(params, "rootUri", default: #f);
   if (root-uri)
-    session.root = locator-directory(as(<url>, root-uri));
+    let url = as(<url>, add-trailing-slash(root-uri));
+    session.root := make(<directory-locator>, path: locator-path(url));
   else
     let root-path = element(params, "rootPath", default: #f);
     if (root-path)
-      session.root = as(<directory-locator>, root-path);
+      session.root := as(<directory-locator>, root-path);
     end;
   end;
   // Set CWD
   if (session.root)
     working-directory() := as(<directory-locator>, session.root);
   end;
+  local-log("Working directory is %s\n", as(<string>, working-directory()));
+
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
                           "textDocumentSync", 1,
@@ -261,14 +281,16 @@ end function;
 define constant $documents = make(<string-table>);
 // Represents one open file (given to us by textDocument/didOpen)
 define class <open-document> (<object>)
-    constant slot uri, required-init-keyword: uri:;
-    slot lines, required-init-keyword: lines:;
+  constant slot document-uri, required-init-keyword: uri:;
+  slot document-module, init-value: #f; // Module if we know it.
+  slot document-lines, required-init-keyword: lines:;
 end class;
 
 define function register-file (uri, contents)
   let lines = split-lines(contents);
-  local-log("register-file: %s, lines: %d\n", uri, size(lines)); 
-  let doc = make(<open-document>, uri: uri, lines: lines);
+  local-log("register-file: %s, lines: %d\n", uri, size(lines));
+  let file-uri = as(<url>, uri);
+  let doc = make(<open-document>, uri: file-uri, lines: lines);
   $documents[uri] := doc;
 end function;
 
@@ -276,8 +298,8 @@ end function;
 If the position not on a symbol, return #f
 */
 define function symbol-at-position (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
-  if (line >=0 & line < size(doc.lines) & column >=0 & column < size(doc.lines[line]))
-    let line = doc.lines[line];
+  if (line >=0 & line < size(doc.document-lines) & column >=0 & column < size(doc.document-lines[line]))
+    let line = doc.document-lines[line];
     local method any-character?(c) => (well? :: <boolean>)
             member?(c, "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=")
           end;
@@ -303,6 +325,7 @@ end function;
 
 define function unregister-file(uri)
   // TODO
+  remove-key!($documents, uri)
 end function;
 
 /* 
@@ -325,8 +348,8 @@ end;
 
 // Look up a symbol. Return the containing doc,
 // the line and column
-define function lookup-symbol (session, symbol) => (doc, line, column)
-  let loc = symbol-location (symbol);
+define function lookup-symbol (session, symbol, #key module = #f) => (doc, line, column)
+  let loc = symbol-location (symbol, module: module);
   if (loc)
     let source-record = loc.source-location-source-record;
     let absolute-path = source-record.source-record-location;
@@ -341,12 +364,13 @@ define function lookup-symbol (session, symbol) => (doc, line, column)
 end;
 
 define function main
-  (name :: <string>, arguments :: <vector>)
+    (name :: <string>, arguments :: <vector>)
+  one-off-debug();
+
   // Command line processing
   if (member?("--debug", arguments, test: \=))
     *debug-mode* := #t;
   end if;
-  local-log("Working directory is %s\n", locator-as-string(<string>, working-directory()));
   // Set up.
   let msg = #f;
   let retcode = 1;

@@ -29,7 +29,7 @@ export function activate(context: ExtensionContext): void {
 	const openDylanRelease =
 		// HACK - should find the real dylan-compiler or allow
 		// to be overridden
-		path.join(path.dirname('/opt/local/2019.2pre/bin/dylan-compiler'), '..');
+		path.join(path.dirname('/opt/local/2020.1pre/bin/dylan-compiler'), '..');
 	const runOptions: ExecutableOptions = {
 		env: {
 			...process.env, OPEN_DYLAN_RELEASE: openDylanRelease,
