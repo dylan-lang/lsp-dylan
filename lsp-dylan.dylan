@@ -148,14 +148,17 @@ define function handle-textDocument/didOpen(session :: <session>,
   if (languageId = "dylan")
     register-file(uri, text);
   end if;
-  // Let's see if we can find a module
-  let u = as(<url>, uri);
-  let f = make-file-locator(u);
-  let (m, l) = file-module(*project*, f);
-  local-log("File: %=\nModule: %=, Library: %=\n",
-            as(<string>, f),
-            if (m) environment-object-primitive-name(*project*, m) else "?" end,
-            if (l) environment-object-primitive-name(*project*, l) else "?" end);
+  if (*project*)
+    // This is just test code.
+    // Let's see if we can find a module
+    let u = as(<url>, uri);
+    let f = make-file-locator(u);
+    let (m, l) = file-module(*project*, f);
+    local-log("File: %=\nModule: %=, Library: %=\n",
+              as(<string>, f),
+              if (m) environment-object-primitive-name(*project*, m) else "?" end,
+              if (l) environment-object-primitive-name(*project*, l) else "?" end);
+  end if;
 end function;
 
 // Go to definition:
@@ -169,7 +172,7 @@ define function handle-textDocument/definition(session :: <session>,
   let position = params["position"];
   let (l, c) = decode-position(position);
   let doc = element($documents, uri, default: #f);
-  let location = #f;
+  let location = $null;
   if (doc)
     unless (doc.document-module)
       let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
@@ -181,9 +184,12 @@ define function handle-textDocument/definition(session :: <session>,
     end;
     let symbol = symbol-at-position(doc, l, c);
     let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
-    if (target)
+    if (target) 
+      local-log("Lookup %s and got target=%s, line=%d, char=%d\n", symbol, target, line, char);
       let uri = make-file-uri(target); // TODO
       location := make-location(as(<string>, uri), line, char);
+    else
+      local-log("Lookup %s, not found\n", symbol);
     end;
   end;
   send-response(session, id, location);
@@ -193,8 +199,16 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
                                             id :: <object>,
                                             params :: <object>) => ()
   local-log("Did change configuration\n");
+  local-log("Settings: %s\n", encode-json-to-string(params));
+  // TODO do something with this info.
+  let settings = params["settings"];
+  let dylan-settings = settings["dylan"];
+  *project-name* := element(dylan-settings, "project", default: #f);
   show-info(session, "The config was changed");
+  test-open-project();
 end function;
+
+// Debug print out a file locator.
 define function deo(l :: <file-locator>) => ()
   local-log("%= %= %= %=\n",
             as(<string>, l),
@@ -211,6 +225,12 @@ define function trailing-slash(s :: <string>) => (s-with-slash :: <string>)
   end
 end;
 
+/* Handler for 'initialized' message.
+ * Here we will register the dynamic capabilities of the server with the client.
+ * Note we don't do this yet, any capabilities are registered statically in the 
+ * 'initialize' message.
+ * Here also we will start the compiler session.
+ */
 define function handle-initialized(session :: <session>,
                                             id :: <object>,
                                             params :: <object>) => ()
@@ -237,8 +257,12 @@ define function handle-initialized(session :: <session>,
             environment-variable("PATH"));
   send-request(session, "workspace/workspaceFolders", #f);
   *server* := start-compiler(in-stream, out-stream);
+end function handle-initialized;
+
+define function test-open-project() => ()  
   // TODO don't hard-code the project name and module name.
-  *project* := open-project(*server*, "testproject");
+  local-log("Select project %=\n", find-project-name());
+  *project* := open-project(*server*, find-project-name());
     // Let's see if we can find a module
   let (m, l) = file-module(*project*, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
   local-log("Try\nModule: %=, Library: %=\n",
@@ -246,22 +270,24 @@ define function handle-initialized(session :: <session>,
             if (l) environment-object-primitive-name(*project*, l) else "?" end);
 
   *module* := "testproject";
-  let myfile = as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
-  deo(myfile);
+  local-log("Test, listing sources:\n");
   for (s in project-sources(*project*))
     let rl = source-record-location(s);
-    local-log("Source: %= of %= in %= %s\n",
+    local-log("Source: %=, a %= in %= \n",
               s,
               object-class(s),
-              as(<string>, rl),
-              if (myfile = rl) "yes" else "no" end);
+              as(<string>, rl));
+              
     deo(rl);
   end;
-  do-project-file-libraries(method(l, r)
-                                local-log("Lib:%= Rec:%=\n", l, r);
-                            end,
-                            *project*,
-                            as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan"));
+  if (*project*)
+    local-log("Test, listing project file libraries\n");
+    do-project-file-libraries(method(l, r)
+                                  local-log("Lib:%= Rec:%=\n", l, r);
+                              end,
+                              *project*,
+                              as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan"));
+  end;
 //  local-log("dylan-sources:%=\n", project-dylan-sources(*project*));
   local-log("Compiler started:%=, project %=\n", *server*, *project*);
   local-log("Database: %=\n", project-compiler-database(*project*));
@@ -275,6 +301,12 @@ define function add-trailing-slash(s :: <string>) => (s-slash :: <string>)
   end;
 end function;
 
+/* Handle the 'initialize' message.
+ * Here we initialize logging/tracing and store the workspace root for later.
+ * Here we return the 'static capabilities' of this server.
+ * In the future we can register capabilities dynamically by sending messages
+ * back to the client; this seems to be the preferred 'new' way to do things.
+*/
 define function handle-initialize (session :: <session>,
                                    id :: <object>,
                                    params :: <object>) => ()
@@ -317,8 +349,10 @@ define function handle-initialize (session :: <session>,
                           "textDocumentSync", 1,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
-  let response-params = json("capabilities", capabilities);
-  send-response(session, id, response-params);
+    let response-params = json("capabilities", capabilities);
+      send-error-response(session, id, -32603, error-message: "Your chips are down");
+
+//  send-response(session, id, response-params);
   // All OK to proceed.
   session.state := $session-active;
 end function;
@@ -334,8 +368,8 @@ end class;
 
 define function register-file (uri, contents)
   let lines = split-lines(contents);
-  local-log("register-file: %s, lines: %d\n", uri, size(lines));
-  let doc = make(<open-document>, uri: uri, lines: lines);
+  local-log("register-file: %s(%s), lines: %d\n", uri, object-class(uri), size(lines));
+  let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
   $documents[uri] := doc;
 end function;
 
@@ -417,9 +451,30 @@ define function lookup-symbol (session, symbol, #key module = #f) => (doc, line,
   end
 end;
 
+/* Find the project name to open.
+ * Either it is set in the per-directory config (passed in from the client)
+ * or we'll guess it is the only lid file in the workspace root.
+ * If there is more than one lid file, that's an error, don't return
+ * any project.
+ * Returns: the name of a project
+ */
+define function find-project-name()
+ => (name :: <string>)
+  let name = "";
+  if (*project-name*)
+    // We've set it explicitly
+    name := *project-name*;
+  else
+    // Guess based on there being one .lid file in the workspace root
+    // TODO
+    name := "testproject.lid"
+  end if;
+  name
+end function;
+
 define function main
     (name :: <string>, arguments :: <vector>)
-  one-off-debug();
+  //one-off-debug();
 
   // Command line processing
   if (member?("--debug", arguments, test: \=))
@@ -506,6 +561,7 @@ define function main
 end function main;
 
 main(application-name(), application-arguments());
+
 
 
 // Local Variables:

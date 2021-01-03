@@ -82,6 +82,10 @@ define method read-json-message(stream :: <stream>) => (json :: <object>)
   end;
 end method read-json-message;
 
+/* Write a message with the base protocol headers
+ * See: https://microsoft.github.io/language-server-protocol/specification#headerPart
+ * We always assume the default encoding.
+ */
 define method write-json-message(stream :: <stream>, json :: <object>) => ()
   let str :: <string> = encode-json-to-string(json);
   let content-length = size(str);
@@ -260,7 +264,7 @@ define method send-request (session :: <session>,
   end if;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send request '%s'\n", method-name);
+    local-log("Server: send request: %s\n", encode-json-to-string(message));
   end if; 
 end method;
 
@@ -272,8 +276,8 @@ define method send-response(session :: <session>,
   message["result"] := result;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send response\n");
-  end; 
+    local-log("Server: send response %s\n", encode-json-to-string(message));
+  end if;
 end method;
 
 define method send-error-response(session :: <session>,
@@ -284,6 +288,7 @@ define method send-error-response(session :: <session>,
     => ()
   let message = make-message(id: id);
   let params = make(<string-table>);
+  params["code"] := error-code;
   params["message"] := error-message | default-error-message(error-code);
   if (error-data)
     params["data"] := error-data;
@@ -291,7 +296,7 @@ define method send-error-response(session :: <session>,
   message["error"] := params;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send error response\n");
+    local-log("Server: send error response: %s\n", encode-json-to-string(message));
   end; 
 end method;
 

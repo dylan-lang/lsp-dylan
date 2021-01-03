@@ -1,4 +1,4 @@
 {
-    "dylan.project": "testproject",
-    "dylan.trace.server": "off"
+    "dylan.project": "testproject.lid",
+    "dylan.trace.server": "verbose"
 }

@@ -12,6 +12,7 @@ define variable *server* = #f;
 define variable *project* = #f;
 define variable *module* = #f;
 define variable *library* = #f;
+define variable *project-name* = #f;
 
 define function start-compiler(input-stream, output-stream)
   make-environment-command-line-server(input-stream: input-stream,
@@ -23,13 +24,21 @@ define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
 end function run-compiler;
 
-define function open-project(server, project-name :: <string>)
+/* Ask the command line compiler to open a project.
+ * Param: server - the command line server
+ * Param: name - the project name (either a registry name or a lid file)
+ * Returns: the project object. (instance of <project-object>)
+*/
+define function open-project(server, name :: <string>)
  => (project :: <object>)
   let command = make-command(<open-project-command>,
                              server: server.server-context,
-                             file: as(<file-locator>, project-name));
-  execute-command(command);
-  find-project(project-name);
+                             file: as(<file-locator>, name));
+  let project = execute-command(command);
+  local-log("Result of opening %s is %=\n", name, project);
+  local-log("Result of find %s is %=\n", project-name(project),
+            find-project(project-name(project)));
+  project
 end function;
 
 
