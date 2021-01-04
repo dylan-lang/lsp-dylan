@@ -257,6 +257,7 @@ define function handle-initialized(session :: <session>,
             environment-variable("PATH"));
   send-request(session, "workspace/workspaceFolders", #f);
   *server* := start-compiler(in-stream, out-stream);
+  test-open-project();
 end function handle-initialized;
 
 define function test-open-project() => ()  
@@ -349,10 +350,8 @@ define function handle-initialize (session :: <session>,
                           "textDocumentSync", 1,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
-    let response-params = json("capabilities", capabilities);
-      send-error-response(session, id, -32603, error-message: "Your chips are down");
-
-//  send-response(session, id, response-params);
+  let response-params = json("capabilities", capabilities);
+  send-response(session, id, response-params);
   // All OK to proceed.
   session.state := $session-active;
 end function;
@@ -467,7 +466,7 @@ define function find-project-name()
   else
     // Guess based on there being one .lid file in the workspace root
     // TODO
-    name := "testproject.lid"
+    name := "testproject"
   end if;
   name
 end function;

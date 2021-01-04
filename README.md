@@ -23,6 +23,7 @@ The file `setup.el` is used just to avoid making any changes to the
 user's `.emacs`.
 
 You must set `OPEN_DYLAN_RELEASE` and `OPEN_DYLAN_USER_REGISTRIES` appropriately.
+Currently the only function is `lsp-find-definition` which will jump to the definition of the symbol under the cursor. Unfortunately it is still not reliable and depends on some hard-coded defaults.
 
 Testing with VS Code (1.45.0 on macos)
 
