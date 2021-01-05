@@ -432,7 +432,7 @@ define function make-file-locator (f :: <url>)
  => (loc :: <file-locator>)
   /* TODO - what if it isnt a file:/, etc etc */
   let d = make(<directory-locator>, path: locator-path(f));
-  format-out("dir:%=", d);
+  local-log("dir:%=", d);
   make(<file-locator>, directory: d, name: locator-name(f))
 end;
 
