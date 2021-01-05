@@ -197,7 +197,10 @@ end function;
 
 define function handle-workspace/didChangeConfiguration(session :: <session>,
                                             id :: <object>,
-                                            params :: <object>) => ()
+                                                        params :: <object>) => ()
+  // NOTE: vscode always sends this just after initialized, whereas
+  // emacs does not, so we need to ask for config items ourselves and
+  // not wait to be told.
   local-log("Did change configuration\n");
   local-log("Settings: %s\n", encode-json-to-string(params));
   // TODO do something with this info.
