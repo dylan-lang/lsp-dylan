@@ -138,6 +138,7 @@ define generic receive-raw-message(session :: <session>)
  * Send a request message.
  * Optionally, register a callback to be called with the response
  * to this message.
+ * The callback is a method(session :: <session>, params :: <object>) => ()
  */
 define generic send-request(session :: <session>,
                             method-name :: <string>,
@@ -219,6 +220,11 @@ define method send-notification(session :: <session>,
   end; 
 end method;
 
+/** receive a request or response.
+ * If it is a request, return the request method, id and params.
+ * If it is a response (to a request we sent to the client), look
+ * up the callback, call it and loop round for another message.
+ */
 define method receive-message (session :: <session>)
   => (method-name :: <string>, id :: <object>, params :: <object>);
   block (return)
@@ -229,14 +235,18 @@ define method receive-message (session :: <session>)
       let params = element(message, "params", default: #f);
       if (method-name)
         if (*trace-messages*)
-          local-log("Server: receive request '%s'\n", method-name);
+          if (id)
+            local-log("Server: receive request '%s - (%s)'\n", method-name, id);
+          else
+            local-log("Server: receive notification '%s'\n", method-name);
+          end if;
         end; 
         // Received a request or notification
         return (method-name, id, params);
       else
         // Received a response
         if (*trace-messages*)
-          local-log("Server: receive response\n");
+          local-log("Server: receive response (%s)\n", id);
         end; 
         let func = element(session.callbacks, id, default: #f);
         if (func)

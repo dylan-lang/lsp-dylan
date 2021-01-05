@@ -17,6 +17,15 @@ define method show-message (session :: <session>,
   send-notification(session, "window/showMessage", show-message-params);
 end method;
 
+define method log-message (session :: <session>,
+                            msg-type :: <integer>,
+                            m :: <string>)
+    => ()
+  let show-message-params = json("type", msg-type,
+                                 "message", m);
+  send-notification(session, "window/logMessage", show-message-params);
+end method;
+
 define inline method show-error (session :: <session>,
                                  m :: <string>)
     => ()
@@ -148,6 +157,7 @@ define function handle-textDocument/didOpen(session :: <session>,
   if (languageId = "dylan")
     register-file(uri, text);
   end if;
+  show-info(session, "handle-textDocument/didOpen");
   if (*project*)
     // This is just test code.
     // Let's see if we can find a module
@@ -207,8 +217,8 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
   *project-name* := element(dylan-settings, "project", default: #f);
-  show-info(session, "The config was changed");
-  test-open-project();
+  //show-info(session, "The config was changed");
+  test-open-project(session);
 end function;
 
 // Debug print out a file locator.
@@ -258,15 +268,19 @@ define function handle-initialized(session :: <session>,
   local-log("Env O-D-R=%s, PATH=%s\n",
             environment-variable("OPEN_DYLAN_RELEASE"),
             environment-variable("PATH"));
-  send-request(session, "workspace/workspaceFolders", #f);
+  send-request(session, "workspace/workspaceFolders", #f, callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
   test-open-project();
 end function handle-initialized;
 
-define function test-open-project() => ()  
+define function test-open-project(session) => ()  
+    show-info(session, "test-open-project 0");
   // TODO don't hard-code the project name and module name.
   local-log("Select project %=\n", find-project-name());
+    show-info(session, "test-open-project 1");
+
   *project* := open-project(*server*, find-project-name());
+  show-info(session, "test-open-project 2");
     // Let's see if we can find a module
   let (m, l) = file-module(*project*, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
   local-log("Try\nModule: %=, Library: %=\n",
@@ -359,6 +373,11 @@ define function handle-initialize (session :: <session>,
   session.state := $session-active;
 end function;
 
+define function handle-workspace/workspaceFolders (session :: <session>,
+                                                   params :: <object>)
+   => ()
+  local-log("Workspace folders were received\n");
+end;
 /* Document Management */
 define constant $documents = make(<string-table>);
 // Represents one open file (given to us by textDocument/didOpen)
@@ -502,6 +521,8 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
+    log-message(session, $message-type-log, "about to loop");
+
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
