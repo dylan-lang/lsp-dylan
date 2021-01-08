@@ -270,7 +270,7 @@ define function handle-initialized(session :: <session>,
             environment-variable("PATH"));
   send-request(session, "workspace/workspaceFolders", #f, callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
-  test-open-project();
+  test-open-project(session);
 end function handle-initialized;
 
 define function test-open-project(session) => ()  
@@ -480,17 +480,28 @@ end;
  * Returns: the name of a project
  */
 define function find-project-name()
- => (name :: <string>)
-  let name = "";
+ => (name :: false-or(<string>))
   if (*project-name*)
     // We've set it explicitly
-    name := *project-name*;
+    local-log("Project name explicitly:%s\n", *project-name*);
+    *project-name*;
   else
     // Guess based on there being one .lid file in the workspace root
-    // TODO
-    name := "testproject"
+    block(return) 
+      local method return-lid(dir, name, type)
+              local-log("Project scan %s\n", name);
+              if (type = #"file")
+                let file = as(<file-locator>, name);
+                if (locator-extension(file) = "lid")
+                  return (name);
+                end if;
+              end if;
+            end method;
+      do-directory(return-lid, working-directory());
+      local-log("Project name, got nothing\n");
+      #f
+    end block;
   end if;
-  name
 end function;
 
 define function main
@@ -521,8 +532,6 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
-    log-message(session, $message-type-log, "about to loop");
-
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>

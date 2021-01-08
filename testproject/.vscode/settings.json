@@ -1,4 +1,3 @@
 {
-    "dylan.project": "testproject.lid",
-    "dylan.trace.server": "verbose"
+    "dylan.project": "testproject.lid"
 }
