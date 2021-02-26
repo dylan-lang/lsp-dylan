@@ -6,6 +6,13 @@ Copyright: 2020
 // Headers for the JSONRPC call
 define variable $content-length = "Content-Length";
 
+define function print-json-to-string
+    (object, #rest args) => (json :: <string>)
+  with-output-to-string (s)
+    apply(print-json, object, s, args)
+  end
+end function;
+
 // Read the header part from a stream and return a
 // table of the (key, value) pairs.
 // Returns #f on error.
@@ -87,7 +94,7 @@ end method read-json-message;
  * We always assume the default encoding.
  */
 define method write-json-message(stream :: <stream>, json :: <object>) => ()
-  let str :: <string> = encode-json-to-string(json);
+  let str :: <string> = print-json-to-string(json);
   let content-length = size(str);
   write(stream, $content-length);
   write(stream, ": ");
@@ -274,7 +281,7 @@ define method send-request (session :: <session>,
   end if;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send request: %s\n", encode-json-to-string(message));
+    local-log("Server: send request: %s\n", print-json-to-string(message));
   end if; 
 end method;
 
@@ -286,7 +293,7 @@ define method send-response(session :: <session>,
   message["result"] := result;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send response %s\n", encode-json-to-string(message));
+    local-log("Server: send response %s\n", print-json-to-string(message));
   end if;
 end method;
 
@@ -306,7 +313,7 @@ define method send-error-response(session :: <session>,
   message["error"] := params;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send error response: %s\n", encode-json-to-string(message));
+    local-log("Server: send error response: %s\n", print-json-to-string(message));
   end; 
 end method;
 

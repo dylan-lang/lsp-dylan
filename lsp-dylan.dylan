@@ -214,7 +214,7 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
   local-log("Did change configuration\n");
-  local-log("Settings: %s\n", encode-json-to-string(params));
+  local-log("Settings: %s\n", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
