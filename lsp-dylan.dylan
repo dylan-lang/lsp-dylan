@@ -190,7 +190,9 @@ define function handle-textDocument/definition(session :: <session>,
                             name: locator-name(doc.document-uri));
       local-log("local-dir=%s\nlocal-file=%s\n", as(<string>, local-dir),
                 as(<string>, local-file));
-      doc.document-module := file-module(*project*, local-file);
+      let (mod, lib) = file-module(*project*, local-file);
+      local-log("module=%s\nlibrary=%s\n", mod, lib);
+      doc.document-module := mod;
     end;
     let symbol = symbol-at-position(doc, l, c);
     let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
@@ -216,19 +218,11 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   // TODO do something with this info.
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
-  *project-name* := element(dylan-settings, "project", default: #f);
+  let project-name = element(dylan-settings, "project", default: #f);
+  *project-name* := (project-name ~= "") & project-name;
   //show-info(session, "The config was changed");
   test-open-project(session);
 end function;
-
-// Debug print out a file locator.
-define function deo(l :: <file-locator>) => ()
-  local-log("%= %= %= %=\n",
-            as(<string>, l),
-            locator-path(l),
-            locator-name(l),
-            locator-relative?(l));
-end;
 
 define function trailing-slash(s :: <string>) => (s-with-slash :: <string>)
   if (s[s.size - 1] = '/')
@@ -274,40 +268,43 @@ define function handle-initialized(session :: <session>,
 end function handle-initialized;
 
 define function test-open-project(session) => ()  
-    show-info(session, "test-open-project 0");
   // TODO don't hard-code the project name and module name.
   local-log("Select project %=\n", find-project-name());
-    show-info(session, "test-open-project 1");
 
   *project* := open-project(*server*, find-project-name());
-  show-info(session, "test-open-project 2");
     // Let's see if we can find a module
-  let (m, l) = file-module(*project*, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan");
+  let (m, l) = file-module(*project*, "library.dylan");
   local-log("Try\nModule: %=, Library: %=\n",
             if (m) environment-object-primitive-name(*project*, m) else "?" end,
             if (l) environment-object-primitive-name(*project*, l) else "?" end);
 
-  *module* := "testproject";
-  local-log("Test, listing sources:\n");
-  for (s in project-sources(*project*))
-    let rl = source-record-location(s);
+  *module* := m;
+  if (*project*)
+    local method wrn(w)
+            local-log("Warn: %=\n", w);
+          end;
+    let db = open-project-compiler-database(*project*, warning-callback: wrn);
+    local-log("Test, Database: %=\n", db);
+    local-log("Test, listing sources:\n");
+    for (s in project-sources(*project*))
+      let rl = source-record-location(s);
     local-log("Source: %=, a %= in %= \n",
               s,
               object-class(s),
               as(<string>, rl));
               
-    deo(rl);
   end;
-  if (*project*)
     local-log("Test, listing project file libraries\n");
     do-project-file-libraries(method(l, r)
                                   local-log("Lib:%= Rec:%=\n", l, r);
                               end,
                               *project*,
-                              as(<file-locator>, "/home/peter/Projects/lsp-dylan/testproject/testproject.dylan"));
-  end;
+                              as(<file-locator>, "library.dylan"));
+  else
+    local-log("Test, Project did't open\n");
+  end if;
 //  local-log("dylan-sources:%=\n", project-dylan-sources(*project*));
-  local-log("Compiler started:%=, project %=\n", *server*, *project*);
+  local-log("Compiler started:%=\nProject %=\n", *server*, *project*);
   local-log("Database: %=\n", project-compiler-database(*project*));
 end function;
 
@@ -375,7 +372,8 @@ end function;
 
 define function handle-workspace/workspaceFolders (session :: <session>,
                                                    params :: <object>)
-   => ()
+ => ()
+// TODO: handle multi-folder workspaces.
   local-log("Workspace folders were received\n");
 end;
 /* Document Management */
@@ -451,7 +449,6 @@ define function make-file-locator (f :: <url>)
  => (loc :: <file-locator>)
   /* TODO - what if it isnt a file:/, etc etc */
   let d = make(<directory-locator>, path: locator-path(f));
-  local-log("dir:%=", d);
   make(<file-locator>, directory: d, name: locator-name(f))
 end;
 

@@ -43,7 +43,7 @@ end function;
 
 
 define function describe-symbol (symbol-name)
-  let env = get-environment-object(symbol-name);
+  let env = get-environment-object(symbol-name, module: *module*);
   environment-object-description(*project*, env, *module*)
 end;
 
@@ -52,7 +52,7 @@ define function symbol-location (symbol-name, #key module = #f)
   if (env)
     environment-object-source-location(*project*, env)
   else
-    local-log("No environment object for %s\n", symbol-name);
+    local-log("No environment object for %s in module %s\n", symbol-name, module);
   end
 end function;
 
