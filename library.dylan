@@ -1,52 +1,52 @@
 Module: dylan-user
 
 define library lsp-dylan
-  use common-dylan;
-  use io;
-  use network;
-  use lisp-reader;
-  use json;
-  use system;
-  use dylan;
-  use strings;
-  use environment-commands;
-  use environment-protocols;
   use build-system;
   use commands;
-  use environment-internal-commands;
-  use dfmc-reader;
-  use source-records;
-  use file-source-records;
-  use system;
-  use registry-projects;
-  //use stack-walker;
-  use release-info;
+  use common-dylan;
   use dfmc-back-end-implementations;
+  use dfmc-reader;
+  use dylan;
+  use environment-commands;
+  use environment-internal-commands;
+  use environment-protocols;
+  use file-source-records;
+  use io;
+  use json;
+  use lisp-reader;
+  use network;
+  use registry-projects;
+  use release-info;
+  use source-records;
+  //use stack-walker;
+  use strings;
+  use system;
+  use system;
 end library;
 
 define module lsp-dylan
+  use build-system;
+  use command-lines;
+  use commands;
   use common-dylan;
+  use dfmc-reader;
+  use environment-commands;
+  use environment-protocols,
+    exclude: { open-project,
+               application-filename,
+               application-arguments,
+               run-application};
+  use file-source-records;
+  use file-system;
   use format-out;
   use format;
+  use json;
+  use locators;
+  use operating-system;
+  use registry-projects;
+  use source-records;
   use standard-io;
   use streams;
-  use file-system;
-  use locators;
-  use json;
-  use threads;
-  use operating-system;
   use strings;
-  use command-lines;
-  use environment-commands;
-  use environment-protocols, exclude: {
-                                       open-project,
-                                       application-filename,
-                                       application-arguments,
-                                       run-application};
-  use commands;
-  use registry-projects;
-  use build-system;
-  use dfmc-reader;
-  use source-records;
-  use file-source-records;
+  use threads;
 end module lsp-dylan;
