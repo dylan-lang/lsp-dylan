@@ -82,7 +82,7 @@ define method read-json-message(stream :: <stream>) => (json :: <object>)
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
     if (*trace-messages*)
-      local-log("received message: %s\n", data);
+      local-log("received message: %s", data);
     end;
     parse-json(data);
   else
@@ -223,7 +223,7 @@ define method send-notification(session :: <session>,
   end;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send notification '%s'\n", method-name);
+    local-log("Server: send notification '%s'", method-name);
   end;
 end method;
 
@@ -246,7 +246,7 @@ define method receive-message (session :: <session>)
       else
         // Received a response
         if (*trace-messages*)
-          local-log("Server: receive response (%s)\n", id);
+          local-log("Server: receive response (%s)", id);
         end;
         let func = element(session.callbacks, id, default: #f);
         if (func)
@@ -274,7 +274,7 @@ define method send-request (session :: <session>,
   end if;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send request: %s\n", print-json-to-string(message));
+    local-log("Server: send request: %s", print-json-to-string(message));
   end if;
 end method;
 
@@ -286,7 +286,7 @@ define method send-response(session :: <session>,
   message["result"] := result;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send response %s\n", print-json-to-string(message));
+    local-log("Server: send response %s", print-json-to-string(message));
   end if;
 end method;
 
@@ -305,7 +305,7 @@ define method send-error-response(session :: <session>,
   message["error"] := params;
   send-raw-message(session, message);
   if (*trace-messages*)
-    local-log("Server: send error response: %s\n", print-json-to-string(message));
+    local-log("Server: send error response: %s", print-json-to-string(message));
   end;
 end method;
 
@@ -321,7 +321,7 @@ define method send-raw-message(session :: <stdio-session>,
     => ()
   let str :: <string> = print-json-to-string(message);
   if (*trace-messages*)
-    local-log("sending message: %s\n", str);
+    local-log("sending message: %s", str);
   end;
   write-json-message(*standard-output*, str);
 end method;

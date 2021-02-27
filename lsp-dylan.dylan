@@ -51,7 +51,7 @@ define inline method show-log(session :: <session>,
 end method;
 
 define function local-log(m :: <string>, #rest params) => ()
-  apply(format, *standard-error*, m, params);
+  apply(format, *standard-error*, concatenate("local-log: ", m, "\n"), params);
   force-output(*standard-error*);
 end function;
 
@@ -108,7 +108,7 @@ define function handle-workspace/symbol (session :: <session>,
   => ()
   // TODO this is only a dummy
   let query = params["query"];
-  local-log("Query: %s\n", query);
+  local-log("Query: %s", query);
   let range = make-range(make-position(0, 0), make-position(0,5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
@@ -151,7 +151,7 @@ define function handle-textDocument/didOpen(session :: <session>,
   let languageId = textDocument["languageId"];
   let version = textDocument["version"];
   let text = textDocument["text"];
-  local-log("textDocument/didOpen: File %s of type %s, version %s, length %d\n",
+  local-log("textDocument/didOpen: File %s of type %s, version %s, length %d",
             uri, languageId, version, size(text));
   // Only bother about dylan files for now.
   if (languageId = "dylan")
@@ -164,7 +164,7 @@ define function handle-textDocument/didOpen(session :: <session>,
     let u = as(<url>, uri);
     let f = make-file-locator(u);
     let (m, l) = file-module(*project*, f);
-    local-log("File: %=\nModule: %=, Library: %=\n",
+    local-log("File: %= Module: %=, Library: %=",
               as(<string>, f),
               if (m) environment-object-primitive-name(*project*, m) else "?" end,
               if (l) environment-object-primitive-name(*project*, l) else "?" end);
@@ -188,20 +188,20 @@ define function handle-textDocument/definition(session :: <session>,
       let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
       let local-file = make(<file-locator>, directory: local-dir,
                             name: locator-name(doc.document-uri));
-      local-log("local-dir=%s\nlocal-file=%s\n", as(<string>, local-dir),
-                as(<string>, local-file));
+      local-log("local-dir=%s", as(<string>, local-dir));
+      local-log("local-file=%s", as(<string>, local-file));
       let (mod, lib) = file-module(*project*, local-file);
-      local-log("module=%s\nlibrary=%s\n", mod, lib);
+      local-log("module=%s, library=%s", mod, lib);
       doc.document-module := mod;
     end;
     let symbol = symbol-at-position(doc, l, c);
     let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
     if (target)
-      local-log("Lookup %s and got target=%s, line=%d, char=%d\n", symbol, target, line, char);
+      local-log("Lookup %s and got target=%s, line=%d, char=%d", symbol, target, line, char);
       let uri = make-file-uri(target); // TODO
       location := make-location(as(<string>, uri), line, char);
     else
-      local-log("Lookup %s, not found\n", symbol);
+      local-log("Lookup %s, not found", symbol);
     end;
   end;
   send-response(session, id, location);
@@ -213,8 +213,8 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
-  local-log("Did change configuration\n");
-  local-log("Settings: %s\n", print-json-to-string(params));
+  local-log("Did change configuration");
+  local-log("Settings: %s", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
@@ -251,17 +251,17 @@ define function handle-initialized
 
   send-request(session, "client/registerCapability", json("registrations", list(hregistration, oregistration)),
                callback: method(session, params)
-                           local-log("Callback called back..%s\n", session);
+                           local-log("Callback called back..%s", session);
                            show-info(session, "Thanks la")
                          end);
 */
   show-info(session, "Dylan LSP server started.");
-  local-log("debug: %s, messages: %s, verbose: %s\n", *debug-mode*, *trace-messages*, *trace-verbose*);
+  local-log("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*);
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
 
   // Test code
-  local-log("Env O-D-R=%s, PATH=%s\n",
+  local-log("Env O-D-R=%s, PATH=%s",
             environment-variable("OPEN_DYLAN_RELEASE"),
             environment-variable("PATH"));
   send-request(session, "workspace/workspaceFolders", #f, callback: handle-workspace/workspaceFolders);
@@ -271,12 +271,12 @@ end function handle-initialized;
 
 define function test-open-project(session) => ()
   // TODO don't hard-code the project name and module name.
-  local-log("Select project %=\n", find-project-name());
+  local-log("Select project %=", find-project-name());
 
   *project* := open-project(*server*, find-project-name());
-    // Let's see if we can find a module
+  // Let's see if we can find a module
   let (m, l) = file-module(*project*, "library.dylan");
-  local-log("Try\nModule: %=, Library: %=\n",
+  local-log("Try Module: %=, Library: %=",
             if (m) environment-object-primitive-name(*project*, m) else "?" end,
             if (l) environment-object-primitive-name(*project*, l) else "?" end);
 
@@ -286,8 +286,8 @@ define function test-open-project(session) => ()
             local-log("Warn: %=\n", w);
           end;
     let db = open-project-compiler-database(*project*, warning-callback: wrn);
-    local-log("Test, Database: %=\n", db);
-    local-log("Test, listing sources:\n");
+    local-log("Test, Database: %=", db);
+    local-log("Test, listing sources:");
     for (s in project-sources(*project*))
       let rl = source-record-location(s);
       local-log("Source: %=, a %= in %=",
@@ -295,9 +295,9 @@ define function test-open-project(session) => ()
                 object-class(s),
                 as(<string>, rl));
     end;
-    local-log("Test, listing project file libraries\n");
-    do-project-file-libraries(method(l, r)
-                                  local-log("Lib:%= Rec:%=\n", l, r);
+    local-log("Test, listing project file libraries");
+    do-project-file-libraries(method (l, r)
+                                local-log("Lib:%= Rec:%=", l, r);
                               end,
                               *project*,
                               as(<file-locator>, "library.dylan"));
@@ -305,8 +305,8 @@ define function test-open-project(session) => ()
     local-log("Test, Project did't open\n");
   end if;
 //  local-log("dylan-sources:%=\n", project-dylan-sources(*project*));
-  local-log("Compiler started:%=\nProject %=\n", *server*, *project*);
-  local-log("Database: %=\n", project-compiler-database(*project*));
+  local-log("Compiler started:%=, Project %=", *server*, *project*);
+  local-log("Database: %=", project-compiler-database(*project*));
 end function;
 
 define function add-trailing-slash(s :: <string>) => (s-slash :: <string>)
@@ -340,7 +340,7 @@ define function handle-initialize (session :: <session>,
                    *trace-messages* := #t;
                    *trace-verbose* := #t;
                  end;
-    otherwise => local-log("trace must be \"off\", \"messages\" or \"verbose\", not %s\n", trace);
+    otherwise => local-log("trace must be \"off\", \"messages\" or \"verbose\", not %s", trace);
   end select;
   // Save the workspace root (if provided) for later.
   // TODO: can root-uri be something that's not a file:// URL?
@@ -359,7 +359,7 @@ define function handle-initialize (session :: <session>,
   if (session.root)
     working-directory() := session.root;
   end;
-  local-log("Working directory is now:%s\n", as(<string>, working-directory()));
+  local-log("Working directory is now:%s", as(<string>, working-directory()));
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
                           "textDocumentSync", 1,
@@ -375,10 +375,12 @@ define function handle-workspace/workspaceFolders (session :: <session>,
                                                    params :: <object>)
  => ()
 // TODO: handle multi-folder workspaces.
-  local-log("Workspace folders were received\n");
+  local-log("Workspace folders were received");
 end;
+
 /* Document Management */
 define constant $documents = make(<string-table>);
+
 // Represents one open file (given to us by textDocument/didOpen)
 define class <open-document> (<object>)
   constant slot document-uri, required-init-keyword: uri:;
@@ -388,7 +390,7 @@ end class;
 
 define function register-file (uri, contents)
   let lines = split-lines(contents);
-  local-log("register-file: %s(%s), lines: %d\n", uri, object-class(uri), size(lines));
+  local-log("register-file: %s(%s), lines: %d", uri, object-class(uri), size(lines));
   let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
   $documents[uri] := doc;
 end function;
@@ -465,7 +467,7 @@ define function lookup-symbol (session, symbol, #key module = #f) => (doc, line,
     let column = loc.source-location-start-column;
     values(absolute-path, line - 1, column)
   else
-    local-log("Looking up %s, not found\n", symbol);
+    local-log("Looking up %s, not found", symbol);
     #f
   end
 end;
@@ -481,13 +483,13 @@ define function find-project-name()
  => (name :: false-or(<string>))
   if (*project-name*)
     // We've set it explicitly
-    local-log("Project name explicitly:%s\n", *project-name*);
+    local-log("Project name explicitly:%s", *project-name*);
     *project-name*;
   else
     // Guess based on there being one .lid file in the workspace root
     block(return)
       local method return-lid(dir, name, type)
-              local-log("Project scan %s\n", name);
+              local-log("Project scan %s", name);
               if (type = #"file")
                 let file = as(<file-locator>, name);
                 if (locator-extension(file) = "lid")
@@ -496,7 +498,7 @@ define function find-project-name()
               end if;
             end method;
       do-directory(return-lid, working-directory());
-      local-log("Project name, got nothing\n");
+      local-log("Project name, got nothing");
       #f
     end block;
   end if;
@@ -516,6 +518,7 @@ define function main
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
+    local-log("entered pre-init state");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" => handle-initialize(session, id, params);
@@ -530,6 +533,7 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
+    local-log("entered active state");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
@@ -552,7 +556,7 @@ define function main
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
         begin
-          local-log("%s '%s' is not implemented\n",
+          local-log("%s '%s' is not implemented",
                     if (id)
                       "Request"
                     else
@@ -568,6 +572,7 @@ define function main
   end while;
   // Shutdown state
   while (session.state == $session-shutdown)
+    local-log("entered shutdown state");
     let (meth, id, params)  = receive-message(session);
     select (meth by =)
       "exit" =>
