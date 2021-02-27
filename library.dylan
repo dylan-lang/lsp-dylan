@@ -14,6 +14,7 @@ define library lsp-dylan
   use io;
   use json;
   use lisp-reader;
+  use logging;
   use network;
   use registry-projects;
   use release-info;
@@ -42,6 +43,7 @@ define module lsp-dylan
   use format;
   use json;
   use locators;
+  use logging;
   use operating-system;
   use registry-projects;
   use source-records;

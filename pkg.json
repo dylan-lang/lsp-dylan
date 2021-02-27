@@ -2,6 +2,7 @@
     "name": "lsp-dylan",
     "deps": [
         "json head",
+        "logging head",
         "vscode-dylan head"
     ],
     "location": "git@github.com:pedro-w/lsp-dylan"

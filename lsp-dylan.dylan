@@ -8,6 +8,7 @@ define constant $message-type-error = 1;
 define constant $message-type-warning = 2;
 define constant $message-type-info = 3;
 define constant $message-type-log = 4;
+
 define method show-message (session :: <session>,
                             msg-type :: <integer>,
                             m :: <string>)
@@ -15,15 +16,6 @@ define method show-message (session :: <session>,
   let show-message-params = json("type", msg-type,
                                  "message", m);
   send-notification(session, "window/showMessage", show-message-params);
-end method;
-
-define method log-message (session :: <session>,
-                            msg-type :: <integer>,
-                            m :: <string>)
-    => ()
-  let show-message-params = json("type", msg-type,
-                                 "message", m);
-  send-notification(session, "window/logMessage", show-message-params);
 end method;
 
 define inline method show-error (session :: <session>,
@@ -50,9 +42,16 @@ define inline method show-log(session :: <session>,
   show-message(session, $message-type-log, m);
 end method;
 
+define constant $log
+  = make(<log>,
+         name: "lsp-dylan",
+         targets: list($stderr-log-target),
+         // For now just displaying millis is a good way to identify all the
+         // messages that belong to a given call/response.
+         formatter: "%{millis} %{level} [%{thread}] - %{message}");
+
 define function local-log(m :: <string>, #rest params) => ()
-  apply(format, *standard-error*, concatenate("local-log: ", m, "\n"), params);
-  force-output(*standard-error*);
+  apply(log-debug, $log, m, params);
 end function;
 
 define function make-range(start, endp)
