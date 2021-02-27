@@ -196,7 +196,7 @@ define function handle-textDocument/definition(session :: <session>,
     end;
     let symbol = symbol-at-position(doc, l, c);
     let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
-    if (target) 
+    if (target)
       local-log("Lookup %s and got target=%s, line=%d, char=%d\n", symbol, target, line, char);
       let uri = make-file-uri(target); // TODO
       location := make-location(as(<string>, uri), line, char);
@@ -234,7 +234,7 @@ end;
 
 /* Handler for 'initialized' message.
  * Here we will register the dynamic capabilities of the server with the client.
- * Note we don't do this yet, any capabilities are registered statically in the 
+ * Note we don't do this yet, any capabilities are registered statically in the
  * 'initialize' message.
  * Here also we will start the compiler session.
  */
@@ -267,7 +267,7 @@ define function handle-initialized(session :: <session>,
   test-open-project(session);
 end function handle-initialized;
 
-define function test-open-project(session) => ()  
+define function test-open-project(session) => ()
   // TODO don't hard-code the project name and module name.
   local-log("Select project %=\n", find-project-name());
 
@@ -288,12 +288,11 @@ define function test-open-project(session) => ()
     local-log("Test, listing sources:\n");
     for (s in project-sources(*project*))
       let rl = source-record-location(s);
-    local-log("Source: %=, a %= in %= \n",
-              s,
-              object-class(s),
-              as(<string>, rl));
-              
-  end;
+      local-log("Source: %=, a %= in %=",
+                s,
+                object-class(s),
+                as(<string>, rl));
+    end;
     local-log("Test, listing project file libraries\n");
     do-project-file-libraries(method(l, r)
                                   local-log("Lib:%= Rec:%=\n", l, r);
@@ -484,7 +483,7 @@ define function find-project-name()
     *project-name*;
   else
     // Guess based on there being one .lid file in the workspace root
-    block(return) 
+    block(return)
       local method return-lid(dir, name, type)
               local-log("Project scan %s\n", name);
               if (type = #"file")

@@ -143,7 +143,7 @@ define function get-environment-object (symbol-name, #key module = #f)
   local-log("%s -> module is %s\n", symbol-name, n(module));
 
   find-environment-object(*project*, symbol-name,
-                                    library: library,
-                                    module: module);
+                          library: library,
+                          module: module);
 end;
 

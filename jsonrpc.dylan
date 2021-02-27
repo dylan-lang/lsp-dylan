@@ -174,7 +174,7 @@ define generic send-error-response
         error-data :: <object> = #f)
   => ();
 
-/* 
+/*
  * Send an LSP notification-type message.
  * This has a method name but no ID because it isn't replied to
 */
@@ -183,12 +183,12 @@ define generic send-notification(session :: <session>,
                                  params :: <object>)
   => ();
 
-/* 
+/*
  * Get the next message.
  * If the message is a notification or request, return it
  * for processing. If it is a response to a request sent
  * by the server, look up the reponse callback and call it.
-*/ 
+*/
 define generic receive-message (session :: <session>)
   => (method-name :: <string>, id :: <object>, params :: <object>);
 
@@ -224,7 +224,7 @@ define method send-notification(session :: <session>,
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send notification '%s'\n", method-name);
-  end; 
+  end;
 end method;
 
 /** receive a request or response.
@@ -247,14 +247,14 @@ define method receive-message (session :: <session>)
           else
             local-log("Server: receive notification '%s'\n", method-name);
           end if;
-        end; 
+        end;
         // Received a request or notification
         return (method-name, id, params);
       else
         // Received a response
         if (*trace-messages*)
           local-log("Server: receive response (%s)\n", id);
-        end; 
+        end;
         let func = element(session.callbacks, id, default: #f);
         if (func)
           remove-key!(session.callbacks, id);
@@ -282,7 +282,7 @@ define method send-request (session :: <session>,
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send request: %s\n", print-json-to-string(message));
-  end if; 
+  end if;
 end method;
 
 define method send-response(session :: <session>,
@@ -314,10 +314,10 @@ define method send-error-response(session :: <session>,
   send-raw-message(session, message);
   if (*trace-messages*)
     local-log("Server: send error response: %s\n", print-json-to-string(message));
-  end; 
+  end;
 end method;
 
-/* 
+/*
  * A session communicating over standard in/out.
  * This is the only one implemented for now.
  */
