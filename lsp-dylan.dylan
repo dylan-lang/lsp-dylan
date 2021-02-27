@@ -233,14 +233,16 @@ define function trailing-slash(s :: <string>) => (s-with-slash :: <string>)
 end;
 
 /* Handler for 'initialized' message.
+ *
+ * Example: {"jsonrpc":"2.0","method":"initialized","params":{}}
+ *
  * Here we will register the dynamic capabilities of the server with the client.
  * Note we don't do this yet, any capabilities are registered statically in the
  * 'initialize' message.
  * Here also we will start the compiler session.
  */
-define function handle-initialized(session :: <session>,
-                                            id :: <object>,
-                                            params :: <object>) => ()
+define function handle-initialized
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   /* Commented out because we don't need to do this (yet)
   let hregistration = json("id", "dylan-reg-hover",
                            "method", "textDocument/hover");

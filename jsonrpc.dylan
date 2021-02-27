@@ -16,7 +16,7 @@ end function;
 // Read the header part from a stream and return a
 // table of the (key, value) pairs.
 // Returns #f on error.
-define function headers(stm)
+define function read-headers(stm)
   // First read lines up to the blank line
   let lines =
     block(return)
@@ -51,6 +51,7 @@ define function headers(stm)
     #f
   end if
 end function;
+
 /**
  * Make a string-table from a sequence of key value pairs.
  * This is just for convenience.
@@ -69,20 +70,20 @@ end function;
 
 define function dump(t :: <table>) => ()
   format(*standard-error*, "Table Dump\n==========\n");
-  for (v keyed-by k in key-sequence(t))
-    format(*standard-error*,
-           "%s-->%s(%s)\n",
-           k,
-           v, object-class(v));
+  for (v keyed-by k in t)
+    format(*standard-error*, "%s-->%s(%s)\n", k, v, object-class(v));
   end for;
 end;
 
 define method read-json-message(stream :: <stream>) => (json :: <object>)
-  let hdrs = headers(stream);
+  let hdrs = read-headers(stream);
   if (hdrs)
     let content-length = element(hdrs, $content-length, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
+    if (*trace-messages*)
+      local-log("received message: %s\n", data);
+    end;
     parse-json(data);
   else
     #f
@@ -93,14 +94,14 @@ end method read-json-message;
  * See: https://microsoft.github.io/language-server-protocol/specification#headerPart
  * We always assume the default encoding.
  */
-define method write-json-message(stream :: <stream>, json :: <object>) => ()
-  let str :: <string> = print-json-to-string(json);
-  let content-length = size(str);
+define method write-json-message
+    (stream :: <stream>, json :: <string>) => ()
+  let content-length = size(json);
   write(stream, $content-length);
   write(stream, ": ");
   write(stream, integer-to-string(content-length));
   write(stream, "\r\n\r\n");
-  write(stream, str);
+  write(stream, json);
 end method;
 
 // This is just a table that uses \= to compare
@@ -200,10 +201,9 @@ define generic flush(session :: <session>)
 
 /*
  * Make the 'skeleton' of a JSONRPC 2.0 message.
-*/
-define function make-message(#key method-name = #f, id = #f)
-  let msg = make(<string-table>);
-  msg["jsonrpc"] := "2.0";
+ */
+define function make-message(#key method-name, id)
+  let msg = json("jsonrpc", "2.0");
   if (method-name)
     msg["method"] := method-name;
   end;
@@ -241,13 +241,6 @@ define method receive-message (session :: <session>)
       let id =  element(message, "id", default: #f);
       let params = element(message, "params", default: #f);
       if (method-name)
-        if (*trace-messages*)
-          if (id)
-            local-log("Server: receive request '%s - (%s)'\n", method-name, id);
-          else
-            local-log("Server: receive notification '%s'\n", method-name);
-          end if;
-        end;
         // Received a request or notification
         return (method-name, id, params);
       else
@@ -304,9 +297,8 @@ define method send-error-response(session :: <session>,
                                        error-data :: <object> = #f)
     => ()
   let message = make-message(id: id);
-  let params = make(<string-table>);
-  params["code"] := error-code;
-  params["message"] := error-message | default-error-message(error-code);
+  let params = json("code", error-code,
+                    "message", error-message | default-error-message(error-code));
   if (error-data)
     params["data"] := error-data;
   end if;
@@ -327,7 +319,11 @@ end class;
 define method send-raw-message(session :: <stdio-session>,
                                message :: <object>)
     => ()
-  write-json-message(*standard-output*, message);
+  let str :: <string> = print-json-to-string(message);
+  if (*trace-messages*)
+    local-log("sending message: %s\n", str);
+  end;
+  write-json-message(*standard-output*, str);
 end method;
 
 define method receive-raw-message(session :: <stdio-session>)
