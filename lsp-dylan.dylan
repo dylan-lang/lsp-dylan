@@ -170,22 +170,34 @@ define function handle-textDocument/didOpen(session :: <session>,
   end if;
 end function;
 
-// Go to definition:
+// Go to definition.
+// Sent by M-. (emacs), ??? (VSCode).
 // See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
-
+// Example JSON:
+//   { "jsonrpc": "2.0",
+//     "method": "textDocument/definition",
+//     "params": {
+//         "textDocument": {
+//             "uri": "file:///home/cgay/dylan/workspaces/lsp/lsp-dylan/testproject/testproject.dylan"
+//         },
+//         "position": { "line": 9, "character": 16}
+//     },
+//     "id": 2
+//   }
 define function handle-textDocument/definition(session :: <session>,
                                                id :: <object>,
                                                params :: <object>) => ()
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
-  let (l, c) = decode-position(position);
+  let (line, character) = decode-position(position);
   let doc = element($documents, uri, default: #f);
   let location = $null;
   if (doc)
     unless (doc.document-module)
       let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
-      let local-file = make(<file-locator>, directory: local-dir,
+      let local-file = make(<file-locator>,
+                            directory: local-dir,
                             name: locator-name(doc.document-uri));
       local-log("local-dir=%s", as(<string>, local-dir));
       local-log("local-file=%s", as(<string>, local-file));
@@ -193,10 +205,12 @@ define function handle-textDocument/definition(session :: <session>,
       local-log("module=%s, library=%s", mod, lib);
       doc.document-module := mod;
     end;
-    let symbol = symbol-at-position(doc, l, c);
-    let (target, line, char) = lookup-symbol(session, symbol, module: doc.document-module);
+    let symbol = symbol-at-position(doc, line, character);
+    let (target, line, char) = lookup-symbol(session, symbol,
+                                             module: doc.document-module);
     if (target)
-      local-log("Lookup %s and got target=%s, line=%d, char=%d", symbol, target, line, char);
+      local-log("Lookup %s and got target=%s, line=%d, char=%d",
+                symbol, target, line, char);
       let uri = make-file-uri(target); // TODO
       location := make-location(as(<string>, uri), line, char);
     else
@@ -255,7 +269,6 @@ define function handle-initialized
                          end);
 */
   show-info(session, "Dylan LSP server started.");
-  local-log("debug: %s, messages: %s, verbose: %s", *debug-mode*, *trace-messages*, *trace-verbose*);
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
 
@@ -263,7 +276,8 @@ define function handle-initialized
   local-log("Env O-D-R=%s, PATH=%s",
             environment-variable("OPEN_DYLAN_RELEASE"),
             environment-variable("PATH"));
-  send-request(session, "workspace/workspaceFolders", #f, callback: handle-workspace/workspaceFolders);
+  send-request(session, "workspace/workspaceFolders", #f,
+               callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
   test-open-project(session);
 end function handle-initialized;
@@ -308,8 +322,8 @@ define function test-open-project(session) => ()
   local-log("Database: %=", project-compiler-database(*project*));
 end function;
 
-define function add-trailing-slash(s :: <string>) => (s-slash :: <string>)
-  if (last(s) = '/')
+define function ensure-trailing-slash(s :: <string>) => (s-slash :: <string>)
+  if (ends-with?(s, "/"))
     s
   else
     concatenate(s, "/")
@@ -321,10 +335,19 @@ end function;
  * Here we return the 'static capabilities' of this server.
  * In the future we can register capabilities dynamically by sending messages
  * back to the client; this seems to be the preferred 'new' way to do things.
+ * https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
 */
 define function handle-initialize (session :: <session>,
                                    id :: <object>,
                                    params :: <object>) => ()
+  // The very first received message is "initialize" (I think), and it seems
+  // that for some reason it doesn't get logged, so log params here. The params
+  // for this method are copious, so we log them with pretty printing.
+  local-log("handle-initialize(%=, %=, %s)",
+            session, id,
+            with-output-to-string (s)
+              print-json(params, s, indent: 2)
+            end);
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
     "off" => begin
@@ -339,13 +362,18 @@ define function handle-initialize (session :: <session>,
                    *trace-messages* := #t;
                    *trace-verbose* := #t;
                  end;
-    otherwise => local-log("trace must be \"off\", \"messages\" or \"verbose\", not %s", trace);
+    otherwise =>
+      local-log("trace must be \"off\", \"messages\" or \"verbose\", not %s", trace);
   end select;
+  local-log("debug: %s, messages: %s, verbose: %s",
+            *debug-mode*, *trace-messages*, *trace-verbose*);
+
   // Save the workspace root (if provided) for later.
+  // rootUri takes precedence over rootPath if both are provided.
   // TODO: can root-uri be something that's not a file:// URL?
   let root-uri  = element(params, "rootUri", default: #f);
   if (root-uri)
-    let url = as(<url>, trailing-slash(root-uri));
+    let url = as(<url>, ensure-trailing-slash(root-uri));
     let dir = make(<directory-locator>, path: locator-path(url));
     session.root := dir;
   else
@@ -354,6 +382,7 @@ define function handle-initialize (session :: <session>,
       session.root := as(<directory-locator>, root-path);
     end;
   end;
+
   // Set CWD
   if (session.root)
     working-directory() := session.root;
@@ -477,6 +506,8 @@ end;
  * If there is more than one lid file, that's an error, don't return
  * any project.
  * Returns: the name of a project
+ * TODO(cgay): This is a question the "workspaces" library should be able to answer
+ *    but currently can't. It just needs a concept of "primary project".
  */
 define function find-project-name()
  => (name :: false-or(<string>))
@@ -517,7 +548,7 @@ define function main
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
-    local-log("entered pre-init state");
+    local-log("state = pre-init");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" => handle-initialize(session, id, params);
@@ -532,7 +563,7 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
-    local-log("entered active state");
+    local-log("state = active");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" =>
@@ -571,7 +602,7 @@ define function main
   end while;
   // Shutdown state
   while (session.state == $session-shutdown)
-    local-log("entered shutdown state");
+    local-log("state = shutdown");
     let (meth, id, params)  = receive-message(session);
     select (meth by =)
       "exit" =>
@@ -600,5 +631,4 @@ main(application-name(), application-arguments());
 
 // Local Variables:
 // indent-tabs-mode: nil
-// compile-command: "dylan-compiler -build lsp-dylan"
 // End:
