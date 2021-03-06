@@ -5,9 +5,21 @@
 (setq lsp-server-trace "verbose")
 
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
-(let ((server (list (expand-file-name "_build/bin/lsp-dylan"
-				 (file-name-directory load-file-name)) "--debug")))
-  (lsp-register-client
-   (make-lsp-client :new-connection (lsp-stdio-connection server)
-                    :major-modes '(dylan-mode)
-                    :server-id 'dylan-lsp)))
+
+(defun lsp-dylan-start ()
+  (let* ((dylan-root (getenv "DYLAN"))
+         (lsp-dylan-relative-path "_build/bin/lsp-dylan")
+         (lsp-dylan-full-path
+          (if dylan-root
+              ;; Assume using dylan-tool if $DYLAN is set.
+              ;; Also assume $DYLAN/workspaces/lsp as the workspace directory.
+              (format "%s/workspaces/lsp/_build/bin/lsp-dylan" dylan-root)
+            ;; Otherwise assume using git submodules in the lsp-dylan directory.
+            (expand-file-name lsp-dylan-relative-path load-file-name)))
+         (server (list lsp-dylan-full-path "--debug")))
+    (lsp-register-client
+     (make-lsp-client :new-connection (lsp-stdio-connection server)
+                      :major-modes '(dylan-mode)
+                      :server-id 'dylan-lsp))))
+
+(lsp-dylan-start)

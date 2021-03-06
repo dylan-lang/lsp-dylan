@@ -25,9 +25,9 @@ define function run-compiler(server, string :: <string>) => ()
 end function run-compiler;
 
 /* Ask the command line compiler to open a project.
- * Param: server - the command line server
- * Param: name - the project name (either a library name or a lid file)
- * Returns: the project object. (instance of <project-object>)
+ * Param: server - the command line server.
+ * Param: name - either a library name or a lid file.
+ * Returns: an instance of <project-object>
 */
 define function open-project(server, name :: <string>)
  => (project :: <object>)

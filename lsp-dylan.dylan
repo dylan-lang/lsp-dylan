@@ -47,7 +47,7 @@ define constant $log
          name: "lsp-dylan",
          targets: list($stderr-log-target),
          // For now just displaying millis is a good way to identify all the
-         // messages that belong to a given call/response.
+         // messages that belong to a given call/response, and it's terse.
          formatter: "%{millis} %{level} [%{thread}] - %{message}");
 
 define function local-log(m :: <string>, #rest params) => ()
@@ -372,22 +372,13 @@ define function handle-initialize (session :: <session>,
   // rootUri takes precedence over rootPath if both are provided.
   // TODO: can root-uri be something that's not a file:// URL?
   let root-uri  = element(params, "rootUri", default: #f);
-  if (root-uri)
-    let url = as(<url>, ensure-trailing-slash(root-uri));
-    let dir = make(<directory-locator>, path: locator-path(url));
-    session.root := dir;
-  else
-    let root-path = element(params, "rootPath", default: #f);
-    if (root-path)
-      session.root := as(<directory-locator>, root-path);
-    end;
-  end;
-
-  // Set CWD
+  let root-path = element(params, "rootPath", default: #f);
+  session.root := find-workspace-root(root-uri, root-path);
   if (session.root)
     working-directory() := session.root;
   end;
   local-log("Working directory is now:%s", as(<string>, working-directory()));
+
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
                           "textDocumentSync", 1,
@@ -397,6 +388,39 @@ define function handle-initialize (session :: <session>,
   send-response(session, id, response-params);
   // All OK to proceed.
   session.state := $session-active;
+end function;
+
+// Find the workspace root. The "rootUri" LSP parameter takes precedence over
+// the deprecated "rootPath" LSP parameter. We first look for a `dylan-tool`
+// workspace root containing the file and then fall back to the nearest
+// directory containing a `registry` directory. This should work for
+// `dylan-tool` users and others equally well.
+define function find-workspace-root
+    (root-uri, root-path) => (root :: false-or(<directory-locator>))
+  let directory
+    = if (root-uri)
+        let url = as(<url>, ensure-trailing-slash(root-uri));
+        make(<directory-locator>, path: locator-path(url))
+      elseif (root-path)
+        as(<directory-locator>, root-path)
+      end;
+  let file = workspace-file(directory: directory);
+  if (file)
+    file.locator-directory
+  else
+    // Search up from `directory` to find the directory containing the
+    // "registry" directory.
+    iterate loop (dir = directory)
+      if (dir)
+        let registry-dir = subdirectory-locator(dir, "registry");
+        if (file-exists?(registry-dir))
+          dir
+        else
+          loop(dir.locator-directory)
+        end
+      end
+    end
+  end
 end function;
 
 define function handle-workspace/workspaceFolders (session :: <session>,
@@ -508,6 +532,8 @@ end;
  * Returns: the name of a project
  * TODO(cgay): This is a question the "workspaces" library should be able to answer
  *    but currently can't. It just needs a concept of "primary project".
+ *    But really, we need to search the LID files to find the file in the original
+ *    client request with rootUri, maybe??
  */
 define function find-project-name()
  => (name :: false-or(<string>))

@@ -22,7 +22,7 @@ define library lsp-dylan
   //use stack-walker;
   use strings;
   use system;
-  use system;
+  use workspaces;
 end library;
 
 define module lsp-dylan
@@ -51,4 +51,5 @@ define module lsp-dylan
   use streams;
   use strings;
   use threads;
+  use workspaces;
 end module lsp-dylan;
