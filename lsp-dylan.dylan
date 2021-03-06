@@ -651,6 +651,10 @@ define function main
   exit-application(retcode);
 end function main;
 
+ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
+       document-lines-setter, trailing-slash, unregister-file,
+       one-off-debug, dump, show-warning, show-log, show-error);
+
 main(application-name(), application-arguments());
 
 
