@@ -377,7 +377,7 @@ define function handle-initialize (session :: <session>,
   if (session.root)
     working-directory() := session.root;
   end;
-  local-log("Working directory is now:%s", as(<string>, working-directory()));
+  local-log("Working directory is now %s", working-directory());
 
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
@@ -404,9 +404,9 @@ define function find-workspace-root
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
-  let file = workspace-file(directory: directory);
-  if (file)
-    file.locator-directory
+  let workspace = ws/find-workspace(directory: directory);
+  if (workspace)
+    ws/workspace-directory(workspace)
   else
     // Search up from `directory` to find the directory containing the
     // "registry" directory.
@@ -542,22 +542,28 @@ define function find-project-name()
     local-log("Project name explicitly:%s", *project-name*);
     *project-name*;
   else
-    // Guess based on there being one .lid file in the workspace root
-    block(return)
-      local method return-lid(dir, name, type)
-              local-log("Project scan %s", name);
-              if (type = #"file")
-                let file = as(<file-locator>, name);
-                if (locator-extension(file) = "lid")
-                  return (name);
+    let workspace = ws/find-workspace();
+    let project-name = workspace & ws/workspace-default-project-name(workspace);
+    if (project-name)
+      project-name
+    else
+      // Guess based on there being one .lid file in the workspace root
+      block(return)
+        local method return-lid(dir, name, type)
+                local-log("Project scan %s", name);
+                if (type = #"file")
+                  let file = as(<file-locator>, name);
+                  if (locator-extension(file) = "lid")
+                    return(name);
+                  end if;
                 end if;
-              end if;
-            end method;
-      do-directory(return-lid, working-directory());
-      local-log("Project name, got nothing");
-      #f
-    end block;
-  end if;
+              end method;
+        do-directory(return-lid, working-directory());
+        local-log("find-project-name found nothing");
+        #f
+      end block
+    end if
+  end if
 end function;
 
 define function main

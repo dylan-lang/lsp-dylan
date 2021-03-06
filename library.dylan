@@ -51,5 +51,6 @@ define module lsp-dylan
   use streams;
   use strings;
   use threads;
-  use workspaces;
+  use workspaces,
+    prefix: "ws/";
 end module lsp-dylan;
