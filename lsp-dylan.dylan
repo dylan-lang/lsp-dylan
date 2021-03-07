@@ -521,8 +521,9 @@ end;
 
 // Look up a symbol. Return the containing doc,
 // the line and column
-define function lookup-symbol (session, symbol, #key module = #f) => (doc, line, column)
-  let loc = symbol-location (symbol, module: module);
+define function lookup-symbol
+    (session, symbol :: <string>, #key module) => (doc, line, column)
+  let loc = symbol-location(symbol, module: module);
   if (loc)
     let source-record = loc.source-location-source-record;
     let absolute-path = source-record.source-record-location;
@@ -542,10 +543,10 @@ end;
  * If there is more than one lid file, that's an error, don't return
  * any project.
  * Returns: the name of a project
- * TODO(cgay): This is a question the "workspaces" library should be able to answer
- *    but currently can't. It just needs a concept of "primary project".
- *    But really, we need to search the LID files to find the file in the original
- *    client request with rootUri, maybe??
+ *
+ * TODO(cgay): Really we need to search the LID files to find the file in the
+ *   textDocument/didOpen message so we can figure out which library's project
+ *   to open.
  */
 define function find-project-name()
  => (name :: false-or(<string>))
@@ -557,6 +558,7 @@ define function find-project-name()
     let workspace = ws/find-workspace();
     let project-name = workspace & ws/workspace-default-project-name(workspace);
     if (project-name)
+      local-log("found dylan-tool workspace default project name %=", project-name);
       project-name
     else
       // Guess based on there being one .lid file in the workspace root

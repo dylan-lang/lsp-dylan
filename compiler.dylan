@@ -47,8 +47,9 @@ define function describe-symbol (symbol-name)
   environment-object-description(*project*, env, *module*)
 end;
 
-define function symbol-location (symbol-name, #key module = #f)
-  let env = symbol-name & get-environment-object(symbol-name, module: module);
+define function symbol-location
+    (symbol-name :: <string>, #key module)
+  let env = get-environment-object(symbol-name, module: module);
   if (env)
     environment-object-source-location(*project*, env)
   else
@@ -134,14 +135,11 @@ end;
 define method n ( x == #f)
   "#f"
 end;
-define function get-environment-object (symbol-name, #key module = #f)
-  let library = project-library(*project*);
-  unless (module)
-    // TODO not hard code
-    module := find-module(*project*, "testproject", library: library);
-  end;
-  local-log("%s -> module is %s", symbol-name, n(module));
 
+define function get-environment-object
+    (symbol-name :: <string>, #key module) => (o :: false-or(<environment-object>))
+  let library = project-library(*project*);
+  local-log("%s -> module is %s", symbol-name, n(module));
   find-environment-object(*project*, symbol-name,
                           library: library,
                           module: module);
