@@ -184,9 +184,8 @@ end function;
 //     },
 //     "id": 2
 //   }
-define function handle-textDocument/definition(session :: <session>,
-                                               id :: <object>,
-                                               params :: <object>) => ()
+define function handle-textDocument/definition
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
@@ -206,15 +205,19 @@ define function handle-textDocument/definition(session :: <session>,
       doc.document-module := mod;
     end;
     let symbol = symbol-at-position(doc, line, character);
-    let (target, line, char) = lookup-symbol(session, symbol,
-                                             module: doc.document-module);
-    if (target)
-      local-log("Lookup %s and got target=%s, line=%d, char=%d",
-                symbol, target, line, char);
-      let uri = make-file-uri(target); // TODO
-      location := make-location(as(<string>, uri), line, char);
+    if (symbol)
+      let (target, line, char)
+        = lookup-symbol(session, symbol, module: doc.document-module);
+      if (target)
+        local-log("Lookup %s and got target=%s, line=%d, char=%d",
+                  symbol, target, line, char);
+        let uri = make-file-uri(target); // TODO
+        location := make-location(as(<string>, uri), line, char);
+      else
+        local-log("Symbol %=, not found", symbol);
+      end;
     else
-      local-log("Lookup %s, not found", symbol);
+      show-message(session, $message-type-info, "No symbol found at current position.");
     end;
   end;
   send-response(session, id, location);
@@ -430,14 +433,17 @@ define function handle-workspace/workspaceFolders (session :: <session>,
   local-log("Workspace folders were received");
 end;
 
-/* Document Management */
+// Maps URI strings to <open-document> objects.
 define constant $documents = make(<string-table>);
 
 // Represents one open file (given to us by textDocument/didOpen)
 define class <open-document> (<object>)
-  constant slot document-uri, required-init-keyword: uri:;
-  slot document-module, init-value: #f; // Module if we know it.
-  slot document-lines, required-init-keyword: lines:;
+  constant slot document-uri :: <url>,
+    required-init-keyword: uri:;
+  slot document-module :: false-or(<module-object>) = #f,
+    init-keyword: module:;
+  slot document-lines :: <sequence>,
+    required-init-keyword: lines:;
 end class;
 
 define function register-file (uri, contents)
@@ -447,31 +453,37 @@ define function register-file (uri, contents)
   $documents[uri] := doc;
 end function;
 
-/* Given a document and a position, find the symbol that this position is within
-If the position not on a symbol, return #f
-*/
-define function symbol-at-position (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
-  if (line >=0 & line < size(doc.document-lines) & column >=0 & column < size(doc.document-lines[line]))
+// Characters that are part of the Dylan "name" BNF.
+define constant $dylan-name-characters
+  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=";
+
+// Given a document and a position, find the Dylan name (identifier) that is at
+// (or immediately precedes) this position. If the position is, for example,
+// the open paren following a function name, we should still find the name. If
+// there is no name at position, return #f.
+define function symbol-at-position
+    (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
+  if (line >= 0
+        & line < size(doc.document-lines)
+        & column >= 0
+        & column < size(doc.document-lines[line]))
     let line = doc.document-lines[line];
-    local method any-character?(c) => (well? :: <boolean>)
-            member?(c, "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=")
+    local method name-character?(c) => (well? :: <boolean>)
+            member?(c, $dylan-name-characters)
           end;
-    if (any-character?(line[column]))
-      let symbol-start = column;
-      let symbol-end = column;
-      while (symbol-start >= 0 & any-character?(line[symbol-start]))
+    let symbol-start = column;
+    let symbol-end = column;
+    while (symbol-start > 0 & name-character?(line[symbol-start - 1]))
       symbol-start := symbol-start - 1;
-      end while;
-      while (symbol-end < size(line) & any-character?(line[symbol-end]))
-        symbol-end := symbol-end + 1;
-      end while;
-      copy-sequence(line, start: symbol-start + 1, end: symbol-end)
-    else
-      // Hovered over some 'punctuation'
-      #f
-    end if
+    end;
+    while (symbol-end < size(line) & name-character?(line[symbol-end]))
+      symbol-end := symbol-end + 1;
+    end while;
+    let name = copy-sequence(line, start: symbol-start, end: symbol-end);
+    ~empty?(name) & name
   else
-    // Not in range
+    local-log("line %d column %d not in range for document %s",
+              line, column, doc.document-uri);
     #f
   end;
 end function;
@@ -598,6 +610,9 @@ define function main
     local-log("state = active");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
+      // TODO(cgay): It would be nice to turn params into a set of keyword/value
+      // pairs and apply(the-method, session, id, params) so that the parameters
+      // to each method are clear from the #key parameters.
       "initialize" =>
           send-error-response(session, id, $invalid-request);
       "initialized" => handle-initialized(session, id, params);
