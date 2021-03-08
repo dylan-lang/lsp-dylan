@@ -1,3 +1,15 @@
 [submodule "vscode-dylan"]
 	path = vscode-dylan
 	url = git@github.com:pedro-w/vscode-dylan.git
+[submodule "ext/json"]
+	path = ext/json
+	url = git@github.com:dylan-lang/json
+[submodule "ext/workspaces"]
+	path = ext/workspaces
+	url = git@github.com:cgay/workspaces
+[submodule "ext/uncommon-dylan"]
+	path = ext/uncommon-dylan
+	url = git@github.com:cgay/uncommon-dylan
+[submodule "ext/pacman"]
+	path = ext/pacman
+	url = git@github.com:cgay/pacman
