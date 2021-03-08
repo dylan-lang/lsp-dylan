@@ -556,10 +556,10 @@ define function find-project-name()
     *project-name*;
   else
     let workspace = ws/find-workspace();
-    let project-name = workspace & ws/workspace-default-project-name(workspace);
-    if (project-name)
-      local-log("found dylan-tool workspace default project name %=", project-name);
-      project-name
+    let library-name = workspace & ws/workspace-default-library-name(workspace);
+    if (library-name)
+      local-log("found dylan-tool workspace default library name %=", library-name);
+      library-name
     else
       // Guess based on there being one .lid file in the workspace root
       block(return)
