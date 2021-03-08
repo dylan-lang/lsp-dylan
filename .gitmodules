@@ -1,7 +1,3 @@
-[submodule "json"]
-	path = json
-	url = git@github.com:pedro-w/json.git
-	branch = updates-for-lsp
 [submodule "vscode-dylan"]
 	path = vscode-dylan
 	url = git@github.com:pedro-w/vscode-dylan.git
