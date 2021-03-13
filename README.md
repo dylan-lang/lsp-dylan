@@ -24,7 +24,8 @@ The file `setup.el` is used just to avoid making any changes to the
 user's `.emacs`.
 
 If you are **not** using [dylan-tool](https://github.com/cgay/dylan-tool) then
-you must set `OPEN_DYLAN_RELEASE` to wherever your "opendylan" directory is and
+you must set `OPEN_DYLAN_RELEASE_INSTALL` to wherever your "opendylan"
+directory is (so that it can find the Jam build scripts) and
 `OPEN_DYLAN_USER_REGISTRIES` to the appropriate "registry" directory.
 
 Currently the only function is `lsp-find-definition` which will jump to the
