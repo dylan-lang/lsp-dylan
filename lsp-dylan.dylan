@@ -9,37 +9,30 @@ define constant $message-type-warning = 2;
 define constant $message-type-info = 3;
 define constant $message-type-log = 4;
 
-define method show-message (session :: <session>,
-                            msg-type :: <integer>,
-                            m :: <string>)
-    => ()
-  let show-message-params = json("type", msg-type,
-                                 "message", m);
-  send-notification(session, "window/showMessage", show-message-params);
+define method window/show-message
+    (session :: <session>, msg-type :: <integer>, msg :: <string>) => ()
+  let params = json("type", msg-type, "message", msg);
+  send-notification(session, "window/showMessage", params);
 end method;
 
-define inline method show-error (session :: <session>,
-                                 m :: <string>)
-    => ()
-  show-message(session, $message-type-error, m);
+define method show-error
+    (session :: <session>, msg :: <string>) => ()
+  window/show-message(session, $message-type-error, msg);
 end method;
 
-define inline method show-warning (session :: <session>,
-                                   m :: <string>)
-    => ()
-  show-message(session, $message-type-warning, m);
+define inline method show-warning
+    (session :: <session>, msg :: <string>) => ()
+  window/show-message(session, $message-type-warning, msg);
 end method;
 
-define inline method show-info (session :: <session>,
-                                m :: <string>)
-    => ()
-  show-message(session, $message-type-info, m);
+define inline method show-info
+    (session :: <session>, msg :: <string>) => ()
+  window/show-message(session, $message-type-info, msg);
 end method;
 
-define inline method show-log(session :: <session>,
-                              m :: <string>)
-    => ()
-  show-message(session, $message-type-log, m);
+define inline method show-log
+    (session :: <session>, msg :: <string>) => ()
+  window/show-message(session, $message-type-log, msg);
 end method;
 
 define constant $log
@@ -51,7 +44,7 @@ define constant $log
          formatter: "%{millis} %{level} [%{thread}] - %{message}");
 
 define function local-log(m :: <string>, #rest params) => ()
-  apply(log-debug, $log, m, params);
+  apply(local-log, m, params);
 end function;
 
 define function make-range(start, endp)
@@ -217,7 +210,7 @@ define function handle-textDocument/definition
         local-log("Symbol %=, not found", symbol);
       end;
     else
-      show-message(session, $message-type-info, "No symbol found at current position.");
+      show-info(session, "No symbol found at current position.");
     end;
   end;
   send-response(session, id, location);
@@ -286,22 +279,21 @@ define function handle-initialized
 end function handle-initialized;
 
 define function test-open-project(session) => ()
-  // TODO don't hard-code the project name and module name.
-  local-log("Select project %=", find-project-name());
+  let project-name = find-project-name();
+  local-log("Found project name %=", project-name);
+  *project* := open-project(*server*, project-name);
+  local-log("Project opened");
 
-  *project* := open-project(*server*, find-project-name());
   // Let's see if we can find a module
   let (m, l) = file-module(*project*, "library.dylan");
   local-log("Try Module: %=, Library: %=",
-            if (m) environment-object-primitive-name(*project*, m) else "?" end,
-            if (l) environment-object-primitive-name(*project*, l) else "?" end);
+            m & environment-object-primitive-name(*project*, m),
+            l & environment-object-primitive-name(*project*, l));
 
   *module* := m;
   if (*project*)
-    local method wrn(w)
-            local-log("Warn: %=\n", w);
-          end;
-    let db = open-project-compiler-database(*project*, warning-callback: wrn);
+    let warn = curry(log-warning, $log, "Warn: %=");
+    let db = open-project-compiler-database(*project*, warning-callback: warn);
     local-log("Test, Database: %=", db);
     local-log("Test, listing sources:");
     for (s in project-sources(*project*))
@@ -407,7 +399,7 @@ define function find-workspace-root
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
-  let workspace = ws/find-workspace(directory: directory);
+  let workspace = ws/workspace-file() & ws/find-workspace(directory: directory);
   if (workspace)
     ws/workspace-directory(workspace)
   else
@@ -548,35 +540,37 @@ end;
  *   textDocument/didOpen message so we can figure out which library's project
  *   to open.
  */
-define function find-project-name()
- => (name :: false-or(<string>))
+define function find-project-name () => (name :: false-or(<string>))
   if (*project-name*)
     // We've set it explicitly
     local-log("Project name explicitly:%s", *project-name*);
-    *project-name*;
-  else
+    *project-name*
+  elseif (ws/workspace-file())
+    // There's a dylan-tool workspace.
     let workspace = ws/find-workspace();
     let library-name = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
       local-log("found dylan-tool workspace default library name %=", library-name);
       library-name
     else
-      // Guess based on there being one .lid file in the workspace root
-      block(return)
-        local method return-lid(dir, name, type)
-                local-log("Project scan %s", name);
-                if (type = #"file")
-                  let file = as(<file-locator>, name);
-                  if (locator-extension(file) = "lid")
-                    return(name);
-                  end if;
+      local-log("dylan-tool workspace has no default library configured.");
+      #f
+    end;
+  else
+    // Guess based on there being one .lid file in the workspace root
+    block(return)
+      local method return-lid(dir, name, type)
+              if (type = #"file")
+                let file = as(<file-locator>, name);
+                if (locator-extension(file) = "lid")
+                  return(name);
                 end if;
-              end method;
-        do-directory(return-lid, working-directory());
-        local-log("find-project-name found nothing");
-        #f
-      end block
-    end if
+              end if;
+            end method;
+      do-directory(return-lid, working-directory());
+      local-log("find-project-name found no LID files");
+      #f
+    end block
   end if
 end function;
 
