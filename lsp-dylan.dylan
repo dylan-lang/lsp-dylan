@@ -4,6 +4,19 @@ Author: Peter
 Copyright: 2019
 
 
+define constant $log
+  = make(<log>,
+         name: "lsp-dylan",
+         targets: list($stderr-log-target),
+         // For now just displaying millis is a good way to identify all the
+         // messages that belong to a given call/response, and it's terse.
+         formatter: "%{millis} %{level} [%{thread}] - %{message}");
+
+define function local-log(m :: <string>, #rest params) => ()
+  apply(log-debug, $log, m, params);
+end function;
+
+
 define constant $message-type-error = 1;
 define constant $message-type-warning = 2;
 define constant $message-type-info = 3;
@@ -34,18 +47,6 @@ define inline method show-log
     (session :: <session>, msg :: <string>) => ()
   window/show-message(session, $message-type-log, msg);
 end method;
-
-define constant $log
-  = make(<log>,
-         name: "lsp-dylan",
-         targets: list($stderr-log-target),
-         // For now just displaying millis is a good way to identify all the
-         // messages that belong to a given call/response, and it's terse.
-         formatter: "%{millis} %{level} [%{thread}] - %{message}");
-
-define function local-log(m :: <string>, #rest params) => ()
-  apply(local-log, m, params);
-end function;
 
 define function make-range(start, endp)
   json("start", start, "end", endp);
@@ -149,17 +150,18 @@ define function handle-textDocument/didOpen(session :: <session>,
   if (languageId = "dylan")
     register-file(uri, text);
   end if;
-  show-info(session, "handle-textDocument/didOpen");
   if (*project*)
     // This is just test code.
     // Let's see if we can find a module
     let u = as(<url>, uri);
     let f = make-file-locator(u);
     let (m, l) = file-module(*project*, f);
-    local-log("File: %= Module: %=, Library: %=",
+    local-log("textDocument/didOpen: File: %= Module: %=, Library: %=",
               as(<string>, f),
-              if (m) environment-object-primitive-name(*project*, m) else "?" end,
-              if (l) environment-object-primitive-name(*project*, l) else "?" end);
+              if (m) environment-object-primitive-name(*project*, m) end,
+              if (l) environment-object-primitive-name(*project*, l) end);
+  else
+    local-log("textDocument/didOpen: no project found");
   end if;
 end function;
 
@@ -185,16 +187,16 @@ define function handle-textDocument/definition
   let (line, character) = decode-position(position);
   let doc = element($documents, uri, default: #f);
   let location = $null;
-  if (doc)
+  if (~doc)
+    local-log("textDocument/definition: document not found: %=", uri);
+  else
     unless (doc.document-module)
       let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
       let local-file = make(<file-locator>,
                             directory: local-dir,
                             name: locator-name(doc.document-uri));
-      local-log("local-dir=%s", as(<string>, local-dir));
-      local-log("local-file=%s", as(<string>, local-file));
       let (mod, lib) = file-module(*project*, local-file);
-      local-log("module=%s, library=%s", mod, lib);
+      local-log("textDocument/definition: module=%s, library=%s", mod, lib);
       doc.document-module := mod;
     end;
     let symbol = symbol-at-position(doc, line, character);
@@ -202,14 +204,15 @@ define function handle-textDocument/definition
       let (target, line, char)
         = lookup-symbol(session, symbol, module: doc.document-module);
       if (target)
-        local-log("Lookup %s and got target=%s, line=%d, char=%d",
+        local-log("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
                   symbol, target, line, char);
         let uri = make-file-uri(target); // TODO
         location := make-location(as(<string>, uri), line, char);
       else
-        local-log("Symbol %=, not found", symbol);
+        local-log("textDocument/definition: symbol %=, not found", symbol);
       end;
     else
+      local-log("textDocument/definition: symbol is #f, nothing to lookup", symbol);
       show-info(session, "No symbol found at current position.");
     end;
   end;
@@ -269,9 +272,18 @@ define function handle-initialized
   let out-stream = make(<string-stream>, direction: #"output");
 
   // Test code
-  local-log("Env O-D-R=%s, PATH=%s",
-            environment-variable("OPEN_DYLAN_RELEASE"),
-            environment-variable("PATH"));
+  for (var in list("OPEN_DYLAN_RELEASE",
+                   "OPEN_DYLAN_RELEASE_BUILD",
+                   "OPEN_DYLAN_RELEASE_INSTALL",
+                   "OPEN_DYLAN_RELEASE_REGISTRIES",
+                   "OPEN_DYLAN_USER_BUILD",
+                   "OPEN_DYLAN_USER_INSTALL",
+                   "OPEN_DYLAN_USER_PROJECTS",
+                   "OPEN_DYLAN_USER_REGISTRIES",
+                   "OPEN_DYLAN_USER_ROOT",
+                   "PATH"))
+    local-log("handle-initialized: %s=%s", var, environment-variable(var));
+  end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
@@ -280,41 +292,48 @@ end function handle-initialized;
 
 define function test-open-project(session) => ()
   let project-name = find-project-name();
-  local-log("Found project name %=", project-name);
+  local-log("test-open-project: Found project name %=", project-name);
   *project* := open-project(*server*, project-name);
-  local-log("Project opened");
+  local-log("test-open-project: Project opened");
 
-  // Let's see if we can find a module
+  // Let's see if we can find a module.
+
+  // TODO(cgay): file-module is returning #f because (I believe)
+  // project-compiler-database(*project*) returns #f and hence file-module
+  // punts. Not sure who's responsible for opening the db and setting that slot
+  // or why it has worked at all in the past.
   let (m, l) = file-module(*project*, "library.dylan");
-  local-log("Try Module: %=, Library: %=",
+  local-log("test-open-project: m = %=, l = %=", m, l);
+  local-log("test-open-project: Try Module: %=, Library: %=",
             m & environment-object-primitive-name(*project*, m),
             l & environment-object-primitive-name(*project*, l));
 
+  local-log("test-open-project: project-library = %=", project-library(*project*));
+  local-log("test-open-project: project db = %=", project-compiler-database(*project*));
+
   *module* := m;
   if (*project*)
-    let warn = curry(log-warning, $log, "Warn: %=");
+    let warn = curry(log-warning, $log, "open-project-compiler-database: %=");
     let db = open-project-compiler-database(*project*, warning-callback: warn);
-    local-log("Test, Database: %=", db);
-    local-log("Test, listing sources:");
+    local-log("test-open-project: db = %=", db);
     for (s in project-sources(*project*))
       let rl = source-record-location(s);
-      local-log("Source: %=, a %= in %=",
+      local-log("test-open-project: Source: %=, a %= in %=",
                 s,
                 object-class(s),
                 as(<string>, rl));
     end;
-    local-log("Test, listing project file libraries");
+    local-log("test-open-project: listing project file libraries:");
     do-project-file-libraries(method (l, r)
-                                local-log("Lib:%= Rec:%=", l, r);
+                                local-log("test-open-project: Lib: %= Rec: %=", l, r);
                               end,
                               *project*,
                               as(<file-locator>, "library.dylan"));
   else
-    local-log("Test, Project did't open\n");
+    local-log("test-open-project: project did't open");
   end if;
-//  local-log("dylan-sources:%=\n", project-dylan-sources(*project*));
-  local-log("Compiler started:%=, Project %=", *server*, *project*);
-  local-log("Database: %=", project-compiler-database(*project*));
+  local-log("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
+  local-log("test-open-project: Database: %=", project-compiler-database(*project*));
 end function;
 
 define function ensure-trailing-slash(s :: <string>) => (s-slash :: <string>)
@@ -358,9 +377,10 @@ define function handle-initialize (session :: <session>,
                    *trace-verbose* := #t;
                  end;
     otherwise =>
-      local-log("trace must be \"off\", \"messages\" or \"verbose\", not %s", trace);
+      log-error($log, "handle-initialize: trace must be"
+                  " \"off\", \"messages\" or \"verbose\", not %=", trace);
   end select;
-  local-log("debug: %s, messages: %s, verbose: %s",
+  local-log("handle-initialize: debug: %s, messages: %s, verbose: %s",
             *debug-mode*, *trace-messages*, *trace-verbose*);
 
   // Save the workspace root (if provided) for later.
@@ -372,7 +392,7 @@ define function handle-initialize (session :: <session>,
   if (session.root)
     working-directory() := session.root;
   end;
-  local-log("Working directory is now %s", working-directory());
+  local-log("handle-initialize: Working directory is now %s", working-directory());
 
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
@@ -440,7 +460,6 @@ end class;
 
 define function register-file (uri, contents)
   let lines = split-lines(contents);
-  local-log("register-file: %s(%s), lines: %d", uri, object-class(uri), size(lines));
   let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
   $documents[uri] := doc;
 end function;
@@ -588,7 +607,7 @@ define function main
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
-    local-log("state = pre-init");
+    local-log("main: state = pre-init");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" => handle-initialize(session, id, params);
@@ -603,7 +622,7 @@ define function main
   end while;
   // Active state
   while (session.state == $session-active)
-    local-log("state = active");
+    local-log("main: state = active");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       // TODO(cgay): It would be nice to turn params into a set of keyword/value
@@ -629,7 +648,7 @@ define function main
       // Respond to any other request with an not-implemented error.
       // Drop any other notifications
         begin
-          local-log("%s '%s' is not implemented",
+          local-log("main: %s '%s' is not implemented",
                     if (id)
                       "Request"
                     else
@@ -645,7 +664,7 @@ define function main
   end while;
   // Shutdown state
   while (session.state == $session-shutdown)
-    local-log("state = shutdown");
+    local-log("main: state = shutdown");
     let (meth, id, params)  = receive-message(session);
     select (meth by =)
       "exit" =>
