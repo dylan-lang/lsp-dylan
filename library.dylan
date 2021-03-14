@@ -46,6 +46,7 @@ define module lsp-dylan
   use logging;
   use operating-system;
   use registry-projects;
+  use simple-debugging;
   use source-records;
   use standard-io;
   use streams;

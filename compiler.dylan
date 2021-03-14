@@ -14,7 +14,8 @@ define variable *module* = #f;
 define variable *library* = #f;
 define variable *project-name* = #f;
 
-define function start-compiler(input-stream, output-stream)
+define function start-compiler
+    (input-stream, output-stream) => (server :: <command-line-server>)
   make-environment-command-line-server(input-stream: input-stream,
                                        output-stream: output-stream)
 end function;

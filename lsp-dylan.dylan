@@ -16,7 +16,6 @@ define function local-log(m :: <string>, #rest params) => ()
   apply(log-debug, $log, m, params);
 end function;
 
-
 define constant $message-type-error = 1;
 define constant $message-type-warning = 2;
 define constant $message-type-info = 3;
@@ -593,6 +592,28 @@ define function find-project-name () => (name :: false-or(<string>))
   end if
 end function;
 
+define function enable-od-environment-debug-logging ()
+  // For simple-debugging's debug-out. This makes it possible to modify the OD
+  // environment sources with debug-out messages and see them in our local logs.
+  debugging?() := #t;
+  // Added most of the sources/environment/ debug-out categories here. --cgay
+  debug-parts() := #(#"dfmc-environment-application",
+                     #"dfmc-environment-database",
+                     #"dfmc-environment-projects",
+                     #"environment-debugger",
+                     #"environment-profiler",
+                     #"environment-protocols",
+                     #"lsp");   // our own temp category. debug-out(#"lsp", ...)
+  local method lsp-debug-out (fn :: <function>)
+          let (fmt, #rest args) = apply(values, fn());
+          // I wish we could log the "part" here, but debug-out drops it.
+          apply(local-log, concatenate("debug-out: ", fmt), args)
+        end;
+  debug-out-function() := lsp-debug-out;
+  // Not yet...
+  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
+end function;
+
 define function main
     (name :: <string>, arguments :: <vector>)
   //one-off-debug();
@@ -600,6 +621,7 @@ define function main
   // Command line processing
   if (member?("--debug", arguments, test: \=))
     *debug-mode* := #t;
+    enable-od-environment-debug-logging();
   end if;
   // Set up.
   let msg = #f;
