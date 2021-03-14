@@ -581,7 +581,12 @@ define function find-project-name () => (name :: false-or(<string>))
               if (type = #"file")
                 let file = as(<file-locator>, name);
                 if (locator-extension(file) = "lid")
-                  return(name);
+                  // TODO(cgay): This strips the extension so that the project will be
+                  // opened via the registry because when it's opened via the .lid file
+                  // directly the database doesn't get opened. Note that when opened by
+                  // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
+                  // via the registry it opens a <dfmc-lid-project-object>.
+                  return(locator-base(file));
                 end if;
               end if;
             end method;
