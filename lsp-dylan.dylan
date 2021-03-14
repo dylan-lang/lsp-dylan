@@ -51,47 +51,39 @@ define function make-range(start, endp)
   json("start", start, "end", endp);
 end function;
 
-/*
- * Make a Position object
- * See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
- */
-define function make-position(line, character)
-  json("line", line, "character", character);
+// Make json for a Position object.
+// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+define function make-position (line, character)
+  json("line", line, "character", character)
 end function;
 
-/*
- * Make a Location that's 'zero size' range
- * See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
- */
-define function make-location(doc, line, character)
+
+// Make json for a Location that's a 'zero size' range.
+// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
+define function make-location (doc, line, character)
   let pos = make-position(line, character);
   json("uri", doc, "range", make-range(pos, pos))
-end;
+end function;
 
-/*
- * Decode a Position object.
- * Note line and character are zero-based.
- * See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
- */
-define function decode-position(position)
+// Decode a Position json object.  Note line and character are zero-based.
+// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+define function decode-position (position)
  => (line :: <integer>, character :: <integer>)
-  let line = as(<integer>, position["line"]);
-  let character = as(<integer>, position["character"]);
+  let line = string-to-integer(position["line"]);
+  let character = string-to-integer(position["character"]);
   values(line, character)
 end function;
 
-/*
- * Create a MarkupContent object.
- * See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
- */
-define function make-markup(txt, #key markdown = #f)
+// Create a MarkupContent json object.
+// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
+define function make-markup (txt, #key markdown)
   let kind = if (markdown)
                "markdown"
              else
                "plaintext"
              end;
   json("value", txt,
-       "kind", kind);
+       "kind", kind)
 end function;
 
 define function handle-workspace/symbol (session :: <session>,
@@ -109,14 +101,12 @@ define function handle-workspace/symbol (session :: <session>,
   send-response(session, id, symbols);
 end function;
 
-/* Show information about a symbol when we hover the cursor over it
- * See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
- * Parameters: textDocument, position, (optional) workDoneToken
- * Returns: contents, (optional) range
- */
-define function handle-textDocument/hover(session :: <session>,
-                                          id :: <object>,
-                                          params :: <object>) => ()
+// Show information about a symbol when we hover the cursor over it
+// See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
+// Parameters: textDocument, position, (optional) workDoneToken
+// Returns: contents, (optional) range
+define function handle-textDocument/hover
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // TODO this is only a dummy
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
@@ -134,9 +124,8 @@ define function handle-textDocument/hover(session :: <session>,
   end;
 end function;
 
-define function handle-textDocument/didOpen(session :: <session>,
-                                            id :: <object>,
-                                            params :: <object>) => ()
+define function handle-textDocument/didOpen
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // TODO this is only a dummy
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
@@ -218,9 +207,8 @@ define function handle-textDocument/definition
   send-response(session, id, location);
 end function;
 
-define function handle-workspace/didChangeConfiguration(session :: <session>,
-                                            id :: <object>,
-                                                        params :: <object>) => ()
+define function handle-workspace/didChangeConfiguration
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
@@ -234,14 +222,6 @@ define function handle-workspace/didChangeConfiguration(session :: <session>,
   //show-info(session, "The config was changed");
   test-open-project(session);
 end function;
-
-define function trailing-slash(s :: <string>) => (s-with-slash :: <string>)
-  if (s[s.size - 1] = '/')
-    s
-  else
-    concatenate(s, "/")
-  end
-end;
 
 /* Handler for 'initialized' message.
  *
@@ -335,24 +315,23 @@ define function test-open-project(session) => ()
   local-log("test-open-project: Database: %=", project-compiler-database(*project*));
 end function;
 
-define function ensure-trailing-slash(s :: <string>) => (s-slash :: <string>)
+define function ensure-trailing-slash
+    (s :: <string>) => (s-slash :: <string>)
   if (ends-with?(s, "/"))
     s
   else
     concatenate(s, "/")
-  end;
+  end
 end function;
 
-/* Handle the 'initialize' message.
- * Here we initialize logging/tracing and store the workspace root for later.
- * Here we return the 'static capabilities' of this server.
- * In the future we can register capabilities dynamically by sending messages
- * back to the client; this seems to be the preferred 'new' way to do things.
- * https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
-*/
-define function handle-initialize (session :: <session>,
-                                   id :: <object>,
-                                   params :: <object>) => ()
+// Handle the 'initialize' message.
+// Here we initialize logging/tracing and store the workspace root for later.
+// Here we return the 'static capabilities' of this server.
+// In the future we can register capabilities dynamically by sending messages
+// back to the client; this seems to be the preferred 'new' way to do things.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
+define function handle-initialize
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // The very first received message is "initialize" (I think), and it seems
   // that for some reason it doesn't get logged, so log params here. The params
   // for this method are copious, so we log them with pretty printing.
@@ -437,11 +416,10 @@ define function find-workspace-root
   end
 end function;
 
-define function handle-workspace/workspaceFolders (session :: <session>,
-                                                   params :: <object>)
- => ()
-// TODO: handle multi-folder workspaces.
-  local-log("Workspace folders were received");
+define function handle-workspace/workspaceFolders
+    (session :: <session>, params :: <object>) => ()
+  // TODO: handle multi-folder workspaces.
+  local-log("Workspace folders were received: %=", params);
 end;
 
 // Maps URI strings to <open-document> objects.
@@ -495,21 +473,19 @@ define function symbol-at-position
     local-log("line %d column %d not in range for document %s",
               line, column, doc.document-uri);
     #f
-  end;
+  end
 end function;
 
-define function unregister-file(uri)
+define function unregister-file (uri)
   // TODO
   remove-key!($documents, uri)
 end function;
 
-/*
- * Make a file:// URI from a local file path.
- * This is supposed to follow RFC 8089
- * (locators library not v. helpful here)
- */
-define function make-file-uri (f :: <file-locator>)
- => (uri :: <url>)
+// Make a file:// URI from a local file path.
+// This is supposed to follow RFC 8089
+// (locators library not v. helpful here)
+define function make-file-uri
+    (f :: <file-locator>) => (uri :: <url>)
   if (f.locator-relative?)
     f := merge-locators(f, working-directory());
   end;
@@ -520,14 +496,14 @@ define function make-file-uri (f :: <file-locator>)
   make(<file-url>,
        directory: directory,
        name: locator-name(f))
-end;
+end function;
 
-define function make-file-locator (f :: <url>)
- => (loc :: <file-locator>)
-  /* TODO - what if it isnt a file:/, etc etc */
+define function make-file-locator
+    (f :: <url>) => (loc :: <file-locator>)
+  // TODO - what if it isnt a file:/, etc etc
   let d = make(<directory-locator>, path: locator-path(f));
   make(<file-locator>, directory: d, name: locator-name(f))
-end;
+end function;
 
 // Look up a symbol. Return the containing doc,
 // the line and column
@@ -545,20 +521,20 @@ define function lookup-symbol
     local-log("Looking up %s, not found", symbol);
     #f
   end
-end;
+end function;
 
-/* Find the project name to open.
- * Either it is set in the per-directory config (passed in from the client)
- * or we'll guess it is the only lid file in the workspace root.
- * If there is more than one lid file, that's an error, don't return
- * any project.
- * Returns: the name of a project
- *
- * TODO(cgay): Really we need to search the LID files to find the file in the
- *   textDocument/didOpen message so we can figure out which library's project
- *   to open.
- */
-define function find-project-name () => (name :: false-or(<string>))
+// Find the project name to open.
+// Either it is set in the per-directory config (passed in from the client)
+// or we'll guess it is the only lid file in the workspace root.
+// If there is more than one lid file, that's an error, don't return
+// any project.
+// Returns: the name of a project
+//
+// TODO(cgay): Really we need to search the LID files to find the file in the
+//   textDocument/didOpen message so we can figure out which library's project
+//   to open.
+define function find-project-name
+    () => (name :: false-or(<string>))
   if (*project-name*)
     // We've set it explicitly
     local-log("Project name explicitly:%s", *project-name*);
@@ -597,9 +573,10 @@ define function find-project-name () => (name :: false-or(<string>))
   end if
 end function;
 
+// This makes it possible to modify the OD environment sources with debug-out
+// messages and see them in our local logs. debug-out et al are from the
+// simple-debugging:dylan module.
 define function enable-od-environment-debug-logging ()
-  // For simple-debugging's debug-out. This makes it possible to modify the OD
-  // environment sources with debug-out messages and see them in our local logs.
   debugging?() := #t;
   // Added most of the sources/environment/ debug-out categories here. --cgay
   debug-parts() := #(#"dfmc-environment-application",
@@ -715,7 +692,7 @@ define function main
 end function main;
 
 ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
-       document-lines-setter, trailing-slash, unregister-file,
+       document-lines-setter, unregister-file,
        one-off-debug, dump, show-warning, show-log, show-error);
 
 main(application-name(), application-arguments());

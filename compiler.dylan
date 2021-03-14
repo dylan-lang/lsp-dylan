@@ -3,10 +3,10 @@ Synopsis: Communicaton with the Dylan command-line compiler
 Author: Peter
 Copyright: 2019
 
-/* The basis of this code is taken from the dswank module
-* author:    Andreas Bogk and Hannes Mehnert
-* copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
-*/
+// The basis of this code is taken from the dswank module.
+// Author:    Andreas Bogk and Hannes Mehnert
+// Copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
+
 
 define variable *server* = #f;
 define variable *project* = #f;
@@ -25,13 +25,12 @@ define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
 end function run-compiler;
 
-/* Ask the command line compiler to open a project.
- * Param: server - the command line server.
- * Param: name - either a library name or a lid file.
- * Returns: an instance of <project-object>
-*/
-define function open-project(server, name :: <string>)
- => (project :: <object>)
+// Ask the command line compiler to open a project.
+// Param: server - the command line server.
+// Param: name - either a library name or a lid file.
+// Returns: an instance of <project-object>
+define function open-project
+    (server, name :: <string>) => (project :: <object>)
   let command = make-command(<open-project-command>,
                              server: server.server-context,
                              file: as(<file-locator>, name));
@@ -74,9 +73,9 @@ define function list-all-package-names ()
       do-directory(collect-project, reg-path);
     end;
   end;
-end;
+end function;
 
-define function one-off-debug()
+define function one-off-debug ()
   //list-all-package-names();
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
@@ -89,7 +88,7 @@ define function one-off-debug()
   let symbol-name = "zeor";
   let library = project-library(project);
   let module = find-module(project, "testproject", library: library);
-let loc = environment-object-source-location(project, module).source-location-source-record;
+  let loc = environment-object-source-location(project, module).source-location-source-record;
   let env = find-environment-object(project,
                                     symbol-name,
                                     library: library,
@@ -120,20 +119,23 @@ let loc = environment-object-source-location(project, module).source-location-so
             locator-path(fp),
             locator-path(pfl),
             same?);
-end;
+end function;
 
 define method n (x :: <environment-object>)
   // for debugging!
   let s = print-environment-object-to-string(*project*, x);
   format-to-string("%s%s", object-class(x), s);
 end;
+
 define method n (x :: <string>)
   format-to-string("\"%s\"", x)
 end;
+
 define method n (x :: <locator>)
   format-to-string("locator:\"%s\"", as(<string>, x))
 end;
-define method n ( x == #f)
+
+define method n (x == #f)
   "#f"
 end;
 
@@ -144,5 +146,4 @@ define function get-environment-object
   find-environment-object(*project*, symbol-name,
                           library: library,
                           module: module);
-end;
-
+end function;
