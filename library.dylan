@@ -2,6 +2,7 @@ Module: dylan-user
 
 define library lsp-dylan
   use build-system;
+  use command-line-parser;
   use commands;
   use common-dylan;
   use dfmc-back-end-implementations;
@@ -27,6 +28,8 @@ end library;
 
 define module lsp-dylan
   use build-system;
+  use command-line-parser,
+    prefix: "clp/";
   use command-lines;
   use commands;
   use common-dylan;

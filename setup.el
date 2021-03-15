@@ -20,7 +20,7 @@
                 (t
                  (error "Couldn't find the lsp-dylan executable"))))
          (full-path (expand-file-name chosen-path (file-name-directory load-file-name)))
-         (server (list full-path "--debug")))
+         (server (list full-path "--debug-server" "--debug-opendylan")))
     (lsp-register-client
      (make-lsp-client :new-connection (lsp-stdio-connection server)
                       :major-modes '(dylan-mode)

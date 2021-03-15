@@ -13,3 +13,6 @@
 [submodule "ext/pacman"]
 	path = ext/pacman
 	url = git@github.com:cgay/pacman
+[submodule "ext/command-line-parser"]
+	path = ext/command-line-parser
+	url = git@github.com:dylan-lang/command-line-parser

@@ -69,8 +69,8 @@ end function;
 // See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
 define function decode-position (position)
  => (line :: <integer>, character :: <integer>)
-  let line = string-to-integer(position["line"]);
-  let character = string-to-integer(position["character"]);
+  let line = position["line"];
+  let character = position["character"];
   values(line, character)
 end function;
 
@@ -573,41 +573,17 @@ define function find-project-name
   end if
 end function;
 
-// This makes it possible to modify the OD environment sources with debug-out
-// messages and see them in our local logs. debug-out et al are from the
-// simple-debugging:dylan module.
-define function enable-od-environment-debug-logging ()
-  debugging?() := #t;
-  // Added most of the sources/environment/ debug-out categories here. --cgay
-  debug-parts() := #(#"dfmc-environment-application",
-                     #"dfmc-environment-database",
-                     #"dfmc-environment-projects",
-                     #"environment-debugger",
-                     #"environment-profiler",
-                     #"environment-protocols",
-                     #"lsp");   // our own temp category. debug-out(#"lsp", ...)
-  local method lsp-debug-out (fn :: <function>)
-          let (fmt, #rest args) = apply(values, fn());
-          // I wish we could log the "part" here, but debug-out drops it.
-          apply(local-log, concatenate("debug-out: ", fmt), args)
-        end;
-  debug-out-function() := lsp-debug-out;
-  // Not yet...
-  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
-end function;
+define function lsp-server-top-level
+    (command :: <lsp-server-command-line>) => ()
+  *debug-mode* := command.debug-server?;
+  if (command.debug-opendylan?)
+    enable-od-environment-debug-logging();
+  end;
 
-define function main
-    (name :: <string>, arguments :: <vector>)
   //one-off-debug();
 
-  // Command line processing
-  if (member?("--debug", arguments, test: \=))
-    *debug-mode* := #t;
-    enable-od-environment-debug-logging();
-  end if;
   // Set up.
   let msg = #f;
-  let retcode = 1;
   let session = make(<stdio-session>);
   // Pre-init state
   while (session.state == $session-preinit)
@@ -669,27 +645,67 @@ define function main
   // Shutdown state
   while (session.state == $session-shutdown)
     local-log("main: state = shutdown");
-    let (meth, id, params)  = receive-message(session);
+    let (meth, id, params) = receive-message(session);
     select (meth by =)
       "exit" =>
-        begin
-          retcode := 0;
-          session.state := $session-killed;
-        end;
+        local-log("Dylan LSP server exiting");
+        clp/abort-command(0);
       otherwise =>
         // Respond to any request with an invalid error,
         // Drop any notifications
-        begin
-          if (id)
-            send-error-response(session, id, $invalid-request);
-          end if;
+        if (id)
+          send-error-response(session, id, $invalid-request);
         end;
     end select;
     flush(session);
   end while;
+end function lsp-server-top-level;
 
-  exit-application(retcode);
-end function main;
+// This makes it possible to modify the OD environment sources with debug-out
+// messages and see them in our local logs. debug-out et al are from the
+// simple-debugging:dylan module.
+define function enable-od-environment-debug-logging ()
+  debugging?() := #t;
+  // Added most of the sources/environment/ debug-out categories here. --cgay
+  debug-parts() := #(#"dfmc-environment-application",
+                     #"dfmc-environment-database",
+                     #"dfmc-environment-projects",
+                     #"environment-debugger",
+                     #"environment-profiler",
+                     #"environment-protocols",
+                     #"lsp");   // our own temp category. debug-out(#"lsp", ...)
+  local method lsp-debug-out (fn :: <function>)
+          let (fmt, #rest args) = apply(values, fn());
+          // I wish we could log the "part" here, but debug-out drops it.
+          apply(local-log, concatenate("debug-out: ", fmt), args)
+        end;
+  debug-out-function() := lsp-debug-out;
+  // Not yet...
+  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
+end function;
+
+define clp/command-line <lsp-server-command-line> ()
+  option debug-server? :: <boolean> = #t, // default to #f eventually
+    names: #("debug-server"),
+    kind: clp/<flag-option>,
+    help: "Turn on debugging for the LSP server.";
+  option debug-opendylan? :: <boolean> = #t, // default to #f eventually
+    names: #("debug-opendylan"),
+    kind: clp/<flag-option>,
+    help: "Turn on debugging for Open Dylan.";
+end clp/command-line;
+
+define function main
+    (name :: <string>, arguments :: <vector>)
+  let command = make(<lsp-server-command-line>,
+                     help: "Dylan LSP server");
+  block ()
+    clp/parse-command-line(command, application-arguments());
+    lsp-server-top-level(command);
+  exception (err :: clp/<abort-command-error>)
+    exit-application(clp/exit-status(err));
+  end;
+end function;
 
 ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
        document-lines-setter, unregister-file,
