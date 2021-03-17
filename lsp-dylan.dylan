@@ -454,7 +454,7 @@ define function symbol-at-position
   if (line >= 0
         & line < size(doc.document-lines)
         & column >= 0
-        & column < size(doc.document-lines[line]))
+        & column <= size(doc.document-lines[line]))
     let line = doc.document-lines[line];
     local method name-character?(c) => (well? :: <boolean>)
             member?(c, $dylan-name-characters)
