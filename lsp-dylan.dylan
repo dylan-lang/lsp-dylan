@@ -4,10 +4,20 @@ Author: Peter
 Copyright: 2019
 
 
+define constant $lsp-log-target
+  = make(<rolling-file-log-target>,
+         pathname: merge-locators(as(<file-locator>,"lsp.log"),
+                                  temp-directory()));
+
 define constant $log
   = make(<log>,
-         name: "lsp-dylan",
-         targets: list($stderr-log-target),
+         name: "lsp",
+         // Log to stderr so it shows up in the *dylan-lsp::stderr* buffer.
+         // Log to a rolling temp file so we have a history and because I've
+         // seen the Emacs LSP client's *dylan-lsp::stderr* buffer not be kept
+         // up to date when the process restarts.
+         targets: list($stderr-log-target,
+                       $lsp-log-target),
          // For now just displaying millis is a good way to identify all the
          // messages that belong to a given call/response, and it's terse.
          formatter: "%{millis} %{level} [%{thread}] - %{message}");
