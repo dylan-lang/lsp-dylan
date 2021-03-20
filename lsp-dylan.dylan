@@ -17,10 +17,7 @@ define constant $log
          // seen the Emacs LSP client's *dylan-lsp::stderr* buffer not be kept
          // up to date when the process restarts.
          targets: list($stderr-log-target,
-                       $lsp-log-target),
-         // For now just displaying millis is a good way to identify all the
-         // messages that belong to a given call/response, and it's terse.
-         formatter: "%{millis} %{level} [%{thread}] - %{message}");
+                       $lsp-log-target));
 
 define function local-log(m :: <string>, #rest params) => ()
   apply(log-debug, $log, m, params);
@@ -446,6 +443,7 @@ define class <open-document> (<object>)
 end class;
 
 define function register-file (uri, contents)
+  local-log("register-file(%=)", uri);
   let lines = split-lines(contents);
   let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
   $documents[uri] := doc;
@@ -561,6 +559,7 @@ define function find-project-name
       #f
     end;
   else
+    local-log("no workspace file found starting in %s", working-directory());
     // Guess based on there being one .lid file in the workspace root
     block(return)
       local method return-lid(dir, name, type)
@@ -577,7 +576,7 @@ define function find-project-name
               end if;
             end method;
       do-directory(return-lid, working-directory());
-      local-log("find-project-name found no LID files");
+      local-log("find-project-name found no LID files in %s", working-directory());
       #f
     end block
   end if

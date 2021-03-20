@@ -19,7 +19,8 @@
                  (concat (getenv "DYLAN") "/workspaces/lsp/" relative-path))
                 (t
                  (error "Couldn't find the lsp-dylan executable"))))
-         (full-path (expand-file-name chosen-path (file-name-directory load-file-name)))
+         (full-path (expand-file-name chosen-path
+                                      (file-name-directory (or load-file-name ""))))
          (server (list full-path "--debug-server" "--debug-opendylan")))
     (lsp-register-client
      (make-lsp-client :new-connection (lsp-stdio-connection server)
