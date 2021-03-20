@@ -582,21 +582,10 @@ define function find-project-name
   end if
 end function;
 
-define function lsp-server-top-level
-    (command :: <lsp-server-command-line>) => ()
-  *debug-mode* := command.debug-server?;
-  if (command.debug-opendylan?)
-    enable-od-environment-debug-logging();
-  end;
-
-  //one-off-debug();
-
-  // Set up.
-  let msg = #f;
-  let session = make(<stdio-session>);
-  // Pre-init state
+define function lsp-pre-init-state-loop
+    (session :: <session>) => ()
   while (session.state == $session-preinit)
-    local-log("main: state = pre-init");
+    local-log("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "initialize" => handle-initialize(session, id, params);
@@ -609,9 +598,12 @@ define function lsp-server-top-level
     end select;
     flush(session);
   end while;
-  // Active state
+end function;
+
+define function lsp-active-state-loop
+    (session :: <session>) => ()
   while (session.state == $session-active)
-    local-log("main: state = active");
+    local-log("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       // TODO(cgay): It would be nice to turn params into a set of keyword/value
@@ -651,9 +643,12 @@ define function lsp-server-top-level
     end select;
     flush(session);
   end while;
-  // Shutdown state
+end function;
+
+define function lsp-shutdown-state-loop
+    (session :: <session>) => ()
   while (session.state == $session-shutdown)
-    local-log("main: state = shutdown");
+    local-log("lsp-shutdown-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
       "exit" =>
@@ -668,7 +663,24 @@ define function lsp-server-top-level
     end select;
     flush(session);
   end while;
-end function lsp-server-top-level;
+end function;
+
+define function lsp-server-top-level
+    (command :: <lsp-server-command-line>) => ()
+  *debug-mode* := command.debug-server?;
+  if (command.debug-opendylan?)
+    enable-od-environment-debug-logging();
+  end;
+
+  let session = make(<stdio-session>);
+  block ()
+    lsp-pre-init-state-loop(session);
+    lsp-active-state-loop(session);
+    lsp-shutdown-state-loop(session);
+  cleanup
+    local-log("lsp-server-top-level exiting: bye!");
+  end;
+end function;
 
 // This makes it possible to modify the OD environment sources with debug-out
 // messages and see them in our local logs. debug-out et al are from the
