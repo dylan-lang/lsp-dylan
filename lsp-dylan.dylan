@@ -50,7 +50,6 @@ define function make-position (line, character)
   json("line", line, "character", character)
 end function;
 
-
 // Make json for a Location that's a 'zero size' range.
 // See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
 define function make-location (doc, line, character)
@@ -146,8 +145,6 @@ define function handle-textDocument/didOpen
   end if;
 end function;
 
-define function foob () 5 end;
-
 // A document was saved. For Emacs, this is called when M-x lsp is executed on
 // a new file. For now we don't care about the message at all, we just trigger
 // a compilation of the associated project (if any) unconditionally.
@@ -158,18 +155,29 @@ define function handle-textDocument/didSave
   let uri = textDocument["uri"];
   let project = find-project-name();
   local-log("textDocument/didSave: File %s, project %=", uri, project);
-  foob();
   if (project)
     let project-object = find-project(project);
     local-log("textDocument/didSave: project = %=", project-object);
     if (project-object)
-      build-project(project-object);
+      let warnings = make(<stretchy-vector>);
+      local method note-warning (#rest args)
+              add!(warnings, args);
+            end;
+      // TODO(cgay): do we want `save-databases?: #t` here?
+      // TODO(cgay): how to display warnings on client side. I assume there's a message
+      //   we should be sending.
+      build-project(project-object,
+                    link?: #f,
+                    warning-callback: note-warning);
       local-log("textDocument/didSave: done building %=", project);
+      show-info(session, "Build complete, %s warnings",
+                if (empty?(warnings)) "no" else warnings.size end);
     else
       show-error("Project %s not found.", project);
     end;
   else
     local-log("handle-textDocument/didSave: project not found for %=", uri);
+    show-error("Project %s not found.", project);
   end;
 end function;
 
