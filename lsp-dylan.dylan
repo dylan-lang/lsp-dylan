@@ -1,5 +1,5 @@
 Module: lsp-dylan
-Synopsis: Test stuff for language server protocol
+Synopsis: Language Server Protocol (LSP) server for Dylan
 Author: Peter
 Copyright: 2019
 
@@ -160,20 +160,67 @@ define function handle-textDocument/didOpen
   end if;
 end function;
 
-// Go to definition.
-// Sent by M-. (emacs), ??? (VSCode).
+define function foob () 5 end;
+
+// A document was saved. For Emacs, this is called when M-x lsp is executed on
+// a new file. For now we don't care about the message at all, we just trigger
+// a compilation of the associated project (if any) unconditionally.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
+define function handle-textDocument/didSave
+    (session :: <session>, id :: <object>, params :: <object>) => ()
+  let textDocument = params["textDocument"];
+  let uri = textDocument["uri"];
+  let project = find-project-name();
+  local-log("textDocument/didSave: File %s, project %=", uri, project);
+  foob();
+  if (project)
+    let project-object = find-project(project);
+    local-log("textDocument/didSave: project = %=", project-object);
+    if (project-object)
+      build-project(project-object);
+      local-log("textDocument/didSave: done building %=", project);
+    else
+      show-error("Project %s not found.", project);
+    end;
+  else
+    local-log("handle-textDocument/didSave: project not found for %=", uri);
+  end;
+end function;
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didChange
+define function handle-textDocument/didChange
+    (session :: <session>, id :: <object>, params :: <object>) => ()
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let document = element($documents, uri, default: #f);
+  if (document)
+    let changes = params["contentChanges"];
+    for (change in changes)
+      apply-change(session, document, change);
+    end;
+  else
+    show-error(session, format-to-string("Document not found on server: %s", uri));
+  end;
+end function;
+
+// Apply a sequence of changes to a document. Each change is a
+// TextDocumentContentChangeEvent json object that has a "text" attribute and optional
+// "range" attribute. If there is no range then text contains the entire new document.
+define function apply-change
+    (session :: <session>, document :: <open-document>, change :: <string-table>) => ()
+  let text = change["text"];
+  let range = element(change, "range", default: #f);
+  if (range)
+    show-error(session, "didChange doesn't support ranges yet");
+  else
+    local-log("document replaced: %s", document.document-uri);
+    show-info(session, "Document content replaced");
+    document-lines(document) := split-lines(text);
+  end;
+end function;
+
+// Jump to definition.
 // See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
-// Example JSON:
-//   { "jsonrpc": "2.0",
-//     "method": "textDocument/definition",
-//     "params": {
-//         "textDocument": {
-//             "uri": "file:///home/cgay/dylan/workspaces/lsp/lsp-dylan/testproject/testproject.dylan"
-//         },
-//         "position": { "line": 9, "character": 16}
-//     },
-//     "id": 2
-//   }
 define function handle-textDocument/definition
     (session :: <session>, id :: <object>, params :: <object>) => ()
   let text-document = params["textDocument"];
@@ -184,6 +231,7 @@ define function handle-textDocument/definition
   let location = $null;
   if (~doc)
     local-log("textDocument/definition: document not found: %=", uri);
+    show-error(session, format-to-string("Document not found: %s", uri));
   else
     unless (doc.document-module)
       let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
@@ -541,6 +589,8 @@ end function;
 // TODO(cgay): Really we need to search the LID files to find the file in the
 //   textDocument/didOpen message so we can figure out which library's project
 //   to open.
+// TODO(cgay): accept a locator argument so we know where to start, rather than
+//   using working-directory(). Also better for testing.
 define function find-project-name
     () => (name :: false-or(<string>))
   if (*project-name*)
@@ -570,7 +620,7 @@ define function find-project-name
                   // opened via the registry because when it's opened via the .lid file
                   // directly the database doesn't get opened. Note that when opened by
                   // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
-                  // via the registry it opens a <dfmc-lid-project-object>.
+                  // via the registry it opens a <dfmc-lid-project-object>. Go figure.
                   return(locator-base(file));
                 end if;
               end if;
@@ -606,39 +656,26 @@ define function lsp-active-state-loop
     local-log("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      // TODO(cgay): It would be nice to turn params into a set of keyword/value
-      // pairs and apply(the-method, session, id, params) so that the parameters
-      // to each method are clear from the #key parameters.
-      "initialize" =>
-          send-error-response(session, id, $invalid-request);
-      "initialized" => handle-initialized(session, id, params);
-      "workspace/symbol" => handle-workspace/symbol(session, id, params);
-      "textDocument/hover" => handle-textDocument/hover(session, id, params);
-      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
-      "textDocument/definition" => handle-textDocument/definition(session, id, params);
-      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
-      // TODO handle all other messages here
-      "shutdown" =>
-        begin
-          // TODO shutdown everything
-          send-response(session, id, $null);
-          session.state := $session-shutdown;
-        end;
       "exit" => session.state := $session-killed;
+      "initialize" => send-error-response(session, id, $invalid-request);
+      "initialized" => handle-initialized(session, id, params);
+      "shutdown" =>
+        send-response(session, id, $null);
+        session.state := $session-shutdown;
+      "textDocument/definition" => handle-textDocument/definition(session, id, params);
+      "textDocument/didChange" => handle-textDocument/didChange(session, id, params);
+      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
+      "textDocument/didSave" => handle-textDocument/didSave(session, id, params);
+      "textDocument/hover" => handle-textDocument/hover(session, id, params);
+      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
+      "workspace/symbol" => handle-workspace/symbol(session, id, params);
       otherwise =>
-      // Respond to any other request with an not-implemented error.
-      // Drop any other notifications
-        begin
-          local-log("main: %s '%s' is not implemented",
-                    if (id)
-                      "Request"
-                    else
-                      "Notification"
-                    end,
-                    meth);
-          if (id)
-            send-error-response(session, id, $method-not-found);
-          end if;
+        // Respond to any other request with an not-implemented error.
+        // Drop any other notifications
+        local-log("lsp-active-state-loop: %s method '%s' is not yet implemented.",
+                  if (id) "Request" else "Notification" end, meth);
+        if (id)
+          send-error-response(session, id, $method-not-found);
         end;
     end select;
     flush(session);

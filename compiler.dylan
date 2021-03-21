@@ -36,7 +36,8 @@ define function open-project
                              file: as(<file-locator>, name));
   let project = execute-command(command);
   local-log("Result of opening %s is %=", name, project);
-  local-log("Result of find %s is %=", project-name(project),
+  local-log("Result of find %s is %=",
+            project-name(project),
             find-project(project-name(project)));
   project
 end function;
