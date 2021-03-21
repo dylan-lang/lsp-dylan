@@ -29,30 +29,16 @@ define constant $message-type-info = 3;
 define constant $message-type-log = 4;
 
 define method window/show-message
-    (session :: <session>, msg-type :: <integer>, msg :: <string>) => ()
+    (msg-type :: <integer>, session :: <session>, fmt :: <string>, #rest args) => ()
+  let msg = apply(format-to-string, fmt, args);
   let params = json("type", msg-type, "message", msg);
   send-notification(session, "window/showMessage", params);
 end method;
 
-define method show-error
-    (session :: <session>, msg :: <string>) => ()
-  window/show-message(session, $message-type-error, msg);
-end method;
-
-define inline method show-warning
-    (session :: <session>, msg :: <string>) => ()
-  window/show-message(session, $message-type-warning, msg);
-end method;
-
-define inline method show-info
-    (session :: <session>, msg :: <string>) => ()
-  window/show-message(session, $message-type-info, msg);
-end method;
-
-define inline method show-log
-    (session :: <session>, msg :: <string>) => ()
-  window/show-message(session, $message-type-log, msg);
-end method;
+define constant show-error   = curry(window/show-message, $message-type-error);
+define constant show-warning = curry(window/show-message, $message-type-warning);
+define constant show-info    = curry(window/show-message, $message-type-info);
+define constant show-log     = curry(window/show-message, $message-type-log);
 
 define function make-range(start, endp)
   json("start", start, "end", endp);
