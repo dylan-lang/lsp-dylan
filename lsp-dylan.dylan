@@ -20,7 +20,7 @@ define constant $log
                        $lsp-log-target));
 
 define function local-log(m :: <string>, #rest params) => ()
-  apply(log-debug, $log, m, params);
+  apply(log-debug, m, params);
 end function;
 
 define constant $message-type-error = 1;
@@ -341,7 +341,7 @@ define function test-open-project(session) => ()
 
   *module* := m;
   if (*project*)
-    let warn = curry(log-warning, $log, "open-project-compiler-database: %=");
+    let warn = curry(log-warning, "open-project-compiler-database: %=");
     let db = open-project-compiler-database(*project*, warning-callback: warn);
     local-log("test-open-project: db = %=", db);
     for (s in project-sources(*project*))
@@ -404,7 +404,7 @@ define function handle-initialize
                    *trace-verbose* := #t;
                  end;
     otherwise =>
-      log-error($log, "handle-initialize: trace must be"
+      log-error("handle-initialize: trace must be"
                   " \"off\", \"messages\" or \"verbose\", not %=", trace);
   end select;
   local-log("handle-initialize: debug: %s, messages: %s, verbose: %s",
@@ -749,6 +749,7 @@ end clp/command-line;
 
 define function main
     (name :: <string>, arguments :: <vector>)
+  *log* := $log;
   let command = make(<lsp-server-command-line>,
                      help: "Dylan LSP server");
   block ()
