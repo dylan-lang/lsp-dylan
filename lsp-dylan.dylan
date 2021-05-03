@@ -150,6 +150,7 @@ define function handle-textDocument/didSave
     (session :: <session>, id :: <object>, params :: <object>) => ()
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
+  // TODO(cgay): obviously we should be passing uri to find-project-name here.
   let project = find-project-name();
   log-debug("textDocument/didSave: File %s, project %=", uri, project);
   if (project)
@@ -157,19 +158,14 @@ define function handle-textDocument/didSave
     log-debug("textDocument/didSave: project = %=", project-object);
     if (project-object)
       let warnings = make(<stretchy-vector>);
-      local method note-warning (#rest args)
-              add!(warnings, args);
-            end;
-      // TODO(cgay): do we want `save-databases?: #t` here?
-      // TODO(cgay): how to display warnings on client side. I assume there's a message
-      //   we should be sending.
       build-project(project-object,
                     link?: #f,
-                    warning-callback: note-warning);
+                    warning-callback: curry(add!, warnings));
       log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warning%s",
                 if (empty?(warnings)) "no" else warnings.size end,
                 if (warnings.size == 1) "" else "s" end);
+      publish-diagnostics(session, uri, warnings);
     else
       show-error("Project %s not found.", project);
     end;
@@ -177,6 +173,80 @@ define function handle-textDocument/didSave
     log-debug("handle-textDocument/didSave: project not found for %=", uri);
     show-error("Project %s not found.", project);
   end;
+end function;
+
+define constant $diagnostic-severity-error = 1;
+define constant $diagnostic-severity-warning = 2;
+//define constant $diagnostic-severity-information = 3;
+//define constant $diagnostic-severity-hint = 4;
+
+define variable *previous-warnings-by-uri* = #f;
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_publishDiagnostics
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
+define function publish-diagnostics
+    (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
+  // Since textDocument/publishDiagnostics has a uri parameter it seems we have
+  // to send warnings separately for each file that has them.
+  let context = server-context(*server*);
+  let project = context-project(context);
+  let warnings-by-uri = make(<string-table>);
+  for (warning in warnings)
+    let loc = environment-object-source-location(project, warning);
+    let sr = loc.source-location-source-record;
+    let uri = locator-to-file-uri(sr.source-record-location);
+    warnings-by-uri[uri]
+      := add!(element(warnings-by-uri, uri, default: #[]), warning);
+  end;
+  for (warnings keyed-by uri in warnings-by-uri)
+    let diagnostics = make(<stretchy-vector>);
+    for (warning in warnings)
+      // Unimplemented Diagnostic fields...
+      //   "code" - probably not applicable for Open Dylan
+      //   "codeDescription" - a URL with more info about the error
+      //   "tags" - e.g., deprecated or unused code
+      //   "relatedInformation" - e.g., location of colliding definition
+      let loc = environment-object-source-location(project, warning);
+      let sr = loc.source-location-source-record;
+      let soff = loc.source-location-start-offset;
+      // sr.source-record-start-line is the number of Dylan Interchange Format
+      // header lines.
+      let start-line = soff.source-offset-line + sr.source-record-start-line - 1;
+      let start-col = soff.source-offset-column;
+      let eoff = loc.source-location-end-offset;
+      let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
+      let end-col = eoff.source-offset-column;
+      let range = make-range(make-position(start-line, start-col),
+                             make-position(end-line, end-col));
+      let severity
+        = if (instance?(warning, <serious-compiler-warning-object>))
+            $diagnostic-severity-error
+          else
+            $diagnostic-severity-warning
+          end;
+      let diagnostic
+        = json("uri", uri,
+               "range", range,
+               "severity", severity,
+               "source", "Open Dylan",
+               "message", compiler-warning-full-message(project, warning));
+      add!(diagnostics, diagnostic);
+    end for;
+    send-notification(session, "textDocument/publishDiagnostics",
+                      json("uri", uri,
+                           "diagnostics", diagnostics));
+  end;
+  // Clear diagnostics for URIs that no longer have any.
+  if (*previous-warnings-by-uri*)
+    for (_ keyed-by old-uri in *previous-warnings-by-uri*)
+      if (~element(warnings-by-uri, old-uri, default: #f))
+        send-notification(session, "textDocument/publishDiagnostics",
+                          json("uri", old-uri,
+                               "diagnostics", #[]));
+      end;
+    end;
+  end;
+  *previous-warnings-by-uri* := warnings-by-uri;
 end function;
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didChange
