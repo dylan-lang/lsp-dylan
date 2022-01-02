@@ -1,9 +1,10 @@
 {
     "name": "lsp-dylan",
     "deps": [
-        "json head",
-        "logging head",
-        "vscode-dylan head"
+        "json@1.0",
+        "logging@2.1",
+        "vscode-dylan@0.1",
+        "workspaces@0.3"
     ],
-    "location": "git@github.com:pedro-w/lsp-dylan"
+    "location": "https://github.com/dylan-lang/lsp-dylan"
 }

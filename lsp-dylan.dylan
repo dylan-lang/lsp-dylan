@@ -446,7 +446,7 @@ define function find-workspace-root
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
-  let workspace = ws/workspace-file() & ws/find-workspace(directory: directory);
+  let workspace = ws/find-workspace-file(directory) & ws/load-workspace(directory);
   if (workspace)
     ws/workspace-directory(workspace)
   else
@@ -591,9 +591,9 @@ define function find-project-name
     // We've set it explicitly
     local-log("Project name explicitly:%s", *project-name*);
     *project-name*
-  elseif (ws/workspace-file())
+  elseif (ws/find-workspace-file(working-directory()))
     // There's a dylan-tool workspace.
-    let workspace = ws/find-workspace();
+    let workspace = ws/load-workspace(working-directory());
     let library-name = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
       local-log("found dylan-tool workspace default library name %=", library-name);
