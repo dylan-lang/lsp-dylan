@@ -1,6 +1,7 @@
 {
     "name": "lsp-dylan",
     "deps": [
+        "command-line-parser@3.1",
         "json@1.0",
         "logging@2.1",
         "vscode-dylan@0.1",
