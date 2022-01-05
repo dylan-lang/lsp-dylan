@@ -1,30 +1,35 @@
-;;; make our server the server for dylan
+;;; Configuration for the Dylan LSP server.
+
 (require 'lsp-mode)
-(setq lsp-print-io t)
+
+(setq lsp-log-io t)
 (setq lsp-enable-snippet nil)
 (setq lsp-server-trace "verbose")
 
+(defvar dylan-lsp-exe-pathname "lsp-dylan"
+  "Pathname of the lsp-dylan executable. Must be an absolute pathname
+   or the binary must be on your PATH.")
+
+(defvar dylan-lsp-debug-server t
+  "If true, the --debug-server option is passed to lsp-dylan, which
+   causes extra debug output from lsp-dylan in the *dylan-lsp* buffer.")
+
+(defvar dylan-lsp-debug-opendylan t
+  "If true, the --debug-opendylan option is passed to lsp-dylan, which
+   causes extra debug output from Open Dylan in the *dylan-lsp* buffer.")
+
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
 
-(defun lsp-dylan-start ()
-  (let* ((relative-path "_build/bin/lsp-dylan")
-         (chosen-path
-          (cond ((file-exists-p relative-path)
-                 ;; If current directory has a _build directory, prefer that.
-                 relative-path)
-                ((getenv "DYLAN")
-                 ;; Assume using dylan-tool and $DYLAN/workspaces/lsp as the
-                 ;; workspace directory.
-                 ;; TODO(cgay): needs better solution. this works for me.
-                 (concat (getenv "DYLAN") "/workspaces/lsp/" relative-path))
-                (t
-                 (error "Couldn't find the lsp-dylan executable"))))
-         (full-path (expand-file-name chosen-path
-                                      (file-name-directory (or load-file-name ""))))
-         (server (list full-path "--debug-server" "--debug-opendylan")))
+(defun dylan-lsp-start ()
+  (let* ((full-path dylan-lsp-exe-pathname)
+         (server (list full-path)))
+    (when dylan-lsp-debug-server
+      (setq server (append server '("--debug-server"))))
+    (when dylan-lsp-debug-opendylan
+      (setq server (append server '("--debug-opendylan"))))
     (lsp-register-client
      (make-lsp-client :new-connection (lsp-stdio-connection server)
                       :major-modes '(dylan-mode)
                       :server-id 'dylan-lsp))))
 
-(lsp-dylan-start)
+(dylan-lsp-start)
