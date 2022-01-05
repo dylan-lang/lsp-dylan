@@ -20,7 +20,7 @@ define constant $log
                        $lsp-log-target));
 
 define function local-log(m :: <string>, #rest params) => ()
-  apply(log-debug, m, params);
+  apply(log-info, m, params);
 end function;
 
 define constant $message-type-error = 1;
