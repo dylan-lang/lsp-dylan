@@ -35,8 +35,8 @@ define function open-project
                              server: server.server-context,
                              file: as(<file-locator>, name));
   let project = execute-command(command);
-  local-log("Result of opening %s is %=", name, project);
-  local-log("Result of find %s is %=",
+  log-debug("Result of opening %s is %=", name, project);
+  log-debug("Result of find %s is %=",
             project-name(project),
             find-project(project-name(project)));
   project
@@ -54,7 +54,7 @@ define function symbol-location
   if (env)
     environment-object-source-location(*project*, env)
   else
-    local-log("No environment object for %s in module %s", symbol-name, module);
+    log-debug("No environment object for %s in module %s", symbol-name, module);
   end
 end function;
 
@@ -63,7 +63,7 @@ define function list-all-package-names ()
             (dir :: <pathname>, filename :: <string>, type :: <file-type>)
           if (type == #"file")
             if (last(filename) ~= '~')
-              local-log("%s", filename);
+              log-debug("%s", filename);
             end;
           end;
         end;
@@ -82,7 +82,7 @@ define function one-off-debug ()
   let out-stream = make(<string-stream>, direction: #"output");
   let srv = start-compiler(in-stream, out-stream);
   let project = open-project(srv, "testproject");
-  local-log("Database: %=", project-compiler-database(project));
+  log-debug("Database: %=", project-compiler-database(project));
 
   *project* := project;
   *server* := srv;
@@ -94,7 +94,7 @@ define function one-off-debug ()
                                     symbol-name,
                                     library: library,
                                     module: module);
-  local-log("one-off-debug:\n  find-environment-object(%s, %s, library:%s, module:%s) => %=",
+  log-debug("one-off-debug:\n  find-environment-object(%s, %s, library:%s, module:%s) => %=",
             n(project),
             n(symbol-name),
             n(library),
@@ -105,18 +105,18 @@ define function one-off-debug ()
 //  fp := "testproject.dylan";
 //  fp := pfl;
   let (m, l) = file-module(project, fp);
-  local-log("one-off-debug:\n  1. %=\n  2. %=\n3. %=", n(fp), n(m), n(l));
+  log-debug("one-off-debug:\n  1. %=\n  2. %=\n3. %=", n(fp), n(m), n(l));
   let same? = pfl = fp;
-  local-log("one-off-debug:\n  1. %=\n  2. %=\n",
+  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
             locator-relative?(fp),
             locator-relative?(pfl));
-  local-log("one-off-debug:\n  1. %=\n  2. %=\n",
+  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
             locator-base(fp),
             locator-base(pfl));
-  local-log("one-off-debug:\n  1. %=\n  2. %=\n",
+  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
             locator-extension(fp),
             locator-extension(pfl));
-  local-log("one-off-debug:\n  1. %=\n  2. %=\n  3.%=\n",
+  log-debug("one-off-debug:\n  1. %=\n  2. %=\n  3.%=\n",
             locator-path(fp),
             locator-path(pfl),
             same?);
@@ -143,7 +143,7 @@ end;
 define function get-environment-object
     (symbol-name :: <string>, #key module) => (o :: false-or(<environment-object>))
   let library = project-library(*project*);
-  local-log("%s -> module is %s", symbol-name, n(module));
+  log-debug("%s -> module is %s", symbol-name, n(module));
   find-environment-object(*project*, symbol-name,
                           library: library,
                           module: module);
