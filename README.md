@@ -68,13 +68,12 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
    Obviously you may modify your Emacs init file instead, if you prefer.
 
 4. Open a Dylan source file and type `M-x lsp` to start the client. The client
-   starts the LSP server (the `lsp-dylan` executable) and connects to it.
+   starts the LSP server (the `lsp-dylan` executable) and connects to it. You
+   must either `(setq dylan-lsp-exe-pathname "/absolute/path/to/lsp-dylan")` in
+   your Emacs init file or make sure that the `lsp-dylan` binary is on your
+   `PATH`.
 
-   Currently `lsp-dylan` must be in `./_build/bin/lsp-dylan` or
-   `${DYLAN}/workspaces/lsp/_build/bin/lsp-dylan`. (TODO: search for it on
-   `PATH`.)
-
-## VS Code Usage (1.45.0 on macos)
+## VS Code Usage (1.45.0 on macOS)
 
 1. Open the `vscode` folder in VS Code
 1. First time only, `npm install` to get the dependencies
