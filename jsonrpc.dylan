@@ -104,13 +104,11 @@ define method write-json-message
   write(stream, json);
 end method;
 
-// This is just a table that uses \= to compare
-// because IDs can be a number or string
-define class <callback-table> (<table>)
+define class <equal-table> (<table>)
 end class;
 
-define method table-protocol (table :: <callback-table>)
-  => (compare :: <function>, hash :: <function>)
+define method table-protocol
+    (table :: <equal-table>) => (compare :: <function>, hash :: <function>)
   values(\=, object-hash)
 end method;
 
@@ -120,27 +118,26 @@ define constant $session-active = 2;
 define constant $session-shutdown = 3;
 define constant $session-killed = 4;
 
-/* Manage one connection to a server,
-* including life-cycle.
-*/
+// Manage one connection to a server, including life-cycle.
 define class <session> (<object>)
-  // Next ID to use in a request/notification
+  // Next ID to use in a request/notification.
+
+  // TODO(cgay): rename to session-id. send-request must not ever be called
+  // because it would get an error due to rebinding "id".
   slot id :: <integer> = 0;
   // Current state, see $session-preinit et al.
   slot state :: <integer> = $session-preinit;
   // Table of functions keyed by ID. Function signature is:
   // (session :: <session>, params :: object) => ()
-  constant slot callbacks = make(<callback-table>);
+  constant slot callbacks = make(<equal-table>);
   // Root path or URI
-  slot root :: <object> = #f;
+  slot root = #f;
 end class;
 
-define generic send-raw-message(session :: <session>,
-                                message :: <object>)
-  => ();
-
-define generic receive-raw-message(session :: <session>)
-  => (message :: <object>);
+define generic send-raw-message
+    (session :: <session>, message :: <object>) => ();
+define generic receive-raw-message
+    (session :: <session>) => (message :: <object>);
 
 /*
  * Send a request message.
@@ -148,61 +145,52 @@ define generic receive-raw-message(session :: <session>)
  * to this message.
  * The callback is a method(session :: <session>, params :: <object>) => ()
  */
-define generic send-request(session :: <session>,
-                            method-name :: <string>,
-                            params :: <object>,
-                            #key callback :: false-or(<function>))
-  => ();
+define generic send-request
+    (session :: <session>, method-name :: <string>, params :: <object>,
+     #key callback) => ();
 
 /*
  * Send the response to a request with identifier id.
  * This applies to a successful request.
  */
-define generic send-response(session :: <session>,
-                             id :: <object>,
-                             result :: <object>)
-  => ();
+define generic send-response
+    (session :: <session>, id :: <object>, result :: <object>) => ();
 
 /*
  * Send an error response to the request with identifier id.
  * Optionally include a human-readable error message and extra data
  */
 define generic send-error-response
-  (session :: <session>,
-   id :: <object>,
-   error-code :: <integer>,
-   #key error-message :: false-or(<string>) = #f,
-        error-data :: <object> = #f)
+    (session :: <session>, id :: <object>, error-code :: <integer>,
+     #key error-message, error-data)
   => ();
 
 /*
  * Send an LSP notification-type message.
  * This has a method name but no ID because it isn't replied to
-*/
-define generic send-notification(session :: <session>,
-                                 method-name :: <string>,
-                                 params :: <object>)
-  => ();
+ */
+define generic send-notification
+    (session :: <session>, method-name :: <string>, params :: <object>) => ();
 
 /*
  * Get the next message.
  * If the message is a notification or request, return it
  * for processing. If it is a response to a request sent
  * by the server, look up the reponse callback and call it.
-*/
-define generic receive-message (session :: <session>)
-  => (method-name :: <string>, id :: <object>, params :: <object>);
+ */
+define generic receive-message
+    (session :: <session>)
+ => (method-name :: <string>, id :: <object>, params :: <object>);
 
 /*
  * Flush any pending messages through the connection.
  */
-define generic flush(session :: <session>)
-  => ();
+define generic flush (session :: <session>) => ();
 
 /*
  * Make the 'skeleton' of a JSONRPC 2.0 message.
  */
-define function make-message(#key method-name, id)
+define function make-message (#key method-name, id)
   let msg = json("jsonrpc", "2.0");
   if (method-name)
     msg["method"] := method-name;
@@ -213,10 +201,9 @@ define function make-message(#key method-name, id)
   msg
 end function;
 
-define method send-notification(session :: <session>,
-                                method-name :: <string>,
-                                params :: <object>)
-    => ()
+define method send-notification
+    (session :: <session>, method-name :: <string>, params :: <object>)
+ => ()
   let message = make-message(method-name: method-name);
   if (params)
     message["params"] := params;
@@ -232,8 +219,9 @@ end method;
  * If it is a response (to a request we sent to the client), look
  * up the callback, call it and loop round for another message.
  */
-define method receive-message (session :: <session>)
-  => (method-name :: <string>, id :: <object>, params :: <object>);
+define method receive-message
+    (session :: <session>)
+ => (method-name :: <string>, id :: <object>, params :: <object>);
   block (return)
     let message = #f;
     while (message := receive-raw-message(session))
@@ -258,10 +246,9 @@ define method receive-message (session :: <session>)
   end block;
 end method;
 
-define method send-request (session :: <session>,
-                            method-name :: <string>,
-                            params :: <object>,
-                            #key callback :: false-or(<function>) = #f)
+define method send-request
+    (session :: <session>, method-name :: <string>, params :: <object>,
+     #key callback :: false-or(<function>))
  => ()
   let id = session.id;
   session.id := id + 1;
@@ -278,10 +265,8 @@ define method send-request (session :: <session>,
   end if;
 end method;
 
-define method send-response(session :: <session>,
-                            id :: <object>,
-                            result :: <object>)
-    => ()
+define method send-response
+    (session :: <session>, id :: <object>, result :: <object>) => ()
   let message = make-message(id: id);
   message["result"] := result;
   send-raw-message(session, message);
@@ -290,11 +275,10 @@ define method send-response(session :: <session>,
   end if;
 end method;
 
-define method send-error-response(session :: <session>,
-                                  id :: <object>,
-                                  error-code :: <integer>,
-                                  #key error-message :: false-or(<string>) = #f,
-                                       error-data :: <object> = #f)
+define method send-error-response
+    (session :: <session>, id :: <object>, error-code :: <integer>,
+     #key error-message :: false-or(<string>),
+          error-data)
     => ()
   let message = make-message(id: id);
   let params = json("code", error-code,
@@ -316,9 +300,8 @@ end method;
 define class <stdio-session> (<session>)
 end class;
 
-define method send-raw-message(session :: <stdio-session>,
-                               message :: <object>)
-    => ()
+define method send-raw-message
+    (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
   if (*trace-messages*)
     log-debug("send-raw-message: %s", str);
@@ -326,12 +309,11 @@ define method send-raw-message(session :: <stdio-session>,
   write-json-message(*standard-output*, str);
 end method;
 
-define method receive-raw-message(session :: <stdio-session>)
-  => (message :: <object>)
+define method receive-raw-message
+    (session :: <stdio-session>) => (message :: <object>)
   read-json-message(*standard-input*)
 end method;
 
-define method flush(session :: <stdio-session>)
-    => ()
+define method flush (session :: <stdio-session>) => ()
   force-output(*standard-output*);
 end method;

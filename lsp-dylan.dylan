@@ -37,36 +37,41 @@ define constant show-warning = curry(window/show-message, $message-type-warning)
 define constant show-info    = curry(window/show-message, $message-type-info);
 define constant show-log     = curry(window/show-message, $message-type-log);
 
-define function make-range(start, endp)
-  json("start", start, "end", endp);
+// It may be worth defining Dylan classes for these basic LSP objects, for
+// clarity and type checking. Also to/from-json methods.
+
+// Make a json Range object. bpos and epos are Position objects.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#range
+define function make-range (bpos, epos)
+  json("start", bpos, "end", epos)
 end function;
 
-// Make json for a Position object.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+// Make json for a Position object. Line and character are both zero-based.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
 define function make-position (line, character)
   json("line", line, "character", character)
 end function;
 
 // Make json for a Location that's a 'zero size' range.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
-define function make-location (doc, line, character)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
+define function make-empty-location (doc :: <string>, line, character)
   let pos = make-position(line, character);
   json("uri", doc, "range", make-range(pos, pos))
 end function;
 
 // Decode a Position json object.  Note line and character are zero-based.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function decode-position (position)
- => (line :: <integer>, character :: <integer>)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+define function decode-position
+    (position) => (line :: <integer>, character :: <integer>)
   let line = position["line"];
   let character = position["character"];
   values(line, character)
 end function;
 
 // Create a MarkupContent json object.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
-define function make-markup (txt, #key markdown)
-  let kind = if (markdown)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
+define function make-markup (txt, #key markdown?)
+  let kind = if (markdown?)
                "markdown"
              else
                "plaintext"
@@ -75,14 +80,12 @@ define function make-markup (txt, #key markdown)
        "kind", kind)
 end function;
 
-define function handle-workspace/symbol (session :: <session>,
-                                         id :: <object>,
-                                         params :: <object>)
-  => ()
+define function handle-workspace/symbol
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // TODO this is only a dummy
   let query = params["query"];
   log-debug("Query: %s", query);
-  let range = make-range(make-position(0, 0), make-position(0,5));
+  let range = make-range(make-position(0, 0), make-position(0, 5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
                           "location", json("range", range,
@@ -105,7 +108,7 @@ define function handle-textDocument/hover
   let symbol = symbol-at-position(doc, line, column);
   if (symbol)
     let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1);
-    let hover = json("contents", make-markup(txt, markdown: #f));
+    let hover = json("contents", make-markup(txt, markdown?: #f));
     send-response(session, id, hover);
   else
     // No symbol found (probably out of range)
@@ -211,7 +214,7 @@ define function apply-change
 end function;
 
 // Jump to definition.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 define function handle-textDocument/definition
     (session :: <session>, id :: <object>, params :: <object>) => ()
   let text-document = params["textDocument"];
@@ -241,7 +244,7 @@ define function handle-textDocument/definition
         log-debug("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
                   symbol, target, line, char);
         let uri = make-file-uri(target); // TODO
-        location := make-location(as(<string>, uri), line, char);
+        location := make-empty-location(as(<string>, uri), line, char);
       else
         log-debug("textDocument/definition: symbol %=, not found", symbol);
       end;
@@ -388,18 +391,15 @@ define function handle-initialize
             end);
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
-    "off" => begin
-               *trace-messages* := #f;
-               *trace-verbose* := #f;
-             end;
-    "messages" => begin
-                    *trace-messages* := #t;
-                    *trace-verbose* := #f;
-                  end;
-    "verbose" => begin
-                   *trace-messages* := #t;
-                   *trace-verbose* := #t;
-                 end;
+    "off" =>
+      *trace-messages* := #f;
+      *trace-verbose* := #f;
+    "messages" =>
+      *trace-messages* := #t;
+      *trace-verbose* := #f;
+    "verbose" =>
+      *trace-messages* := #t;
+      *trace-verbose* := #t;
     otherwise =>
       log-error("handle-initialize: trace must be"
                   " \"off\", \"messages\" or \"verbose\", not %=", trace);
@@ -629,8 +629,10 @@ define function lsp-pre-init-state-loop
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "initialize" => handle-initialize(session, id, params);
-      "exit" => session.state := $session-killed;
+      "initialize" =>
+        handle-initialize(session, id, params);
+      "exit" =>
+        session.state := $session-killed;
       otherwise =>
         // Respond to any request with an error, and drop any notifications
         if (id)
@@ -647,19 +649,29 @@ define function lsp-active-state-loop
     log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "exit" => session.state := $session-killed;
-      "initialize" => send-error-response(session, id, $invalid-request);
-      "initialized" => handle-initialized(session, id, params);
+      "exit" =>
+        session.state := $session-killed;
+      "initialize" =>
+        send-error-response(session, id, $invalid-request);
+      "initialized" =>
+        handle-initialized(session, id, params);
       "shutdown" =>
         send-response(session, id, $null);
         session.state := $session-shutdown;
-      "textDocument/definition" => handle-textDocument/definition(session, id, params);
-      "textDocument/didChange" => handle-textDocument/didChange(session, id, params);
-      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
-      "textDocument/didSave" => handle-textDocument/didSave(session, id, params);
-      "textDocument/hover" => handle-textDocument/hover(session, id, params);
-      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
-      "workspace/symbol" => handle-workspace/symbol(session, id, params);
+      "textDocument/definition" =>
+        handle-textDocument/definition(session, id, params);
+      "textDocument/didChange" =>
+        handle-textDocument/didChange(session, id, params);
+      "textDocument/didOpen" =>
+        handle-textDocument/didOpen(session, id, params);
+      "textDocument/didSave" =>
+        handle-textDocument/didSave(session, id, params);
+      "textDocument/hover" =>
+        handle-textDocument/hover(session, id, params);
+      "workspace/didChangeConfiguration" =>
+        handle-workspace/didChangeConfiguration(session, id, params);
+      "workspace/symbol" =>
+        handle-workspace/symbol(session, id, params);
       otherwise =>
         // Respond to any other request with an not-implemented error.
         // Drop any other notifications
