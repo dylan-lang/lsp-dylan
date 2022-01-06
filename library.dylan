@@ -69,5 +69,10 @@ define module lsp-dylan-impl
 
   // For test suite.
   export
-    send-request;
+    id,
+    json,
+    send-raw-message,
+    send-request,
+    <stdio-session>,
+      output-stream;
 end module;

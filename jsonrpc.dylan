@@ -298,6 +298,10 @@ end method;
  * This is the only one implemented for now.
  */
 define class <stdio-session> (<session>)
+  constant slot input-stream :: <stream>,
+    required-init-keyword: input-stream:;
+  constant slot output-stream :: <stream>,
+    required-init-keyword: output-stream:;
 end class;
 
 define method send-raw-message
@@ -306,14 +310,14 @@ define method send-raw-message
   if (*trace-messages*)
     log-debug("send-raw-message: %s", str);
   end;
-  write-json-message(*standard-output*, str);
+  write-json-message(session.output-stream, str);
 end method;
 
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
-  read-json-message(*standard-input*)
+  read-json-message(session.input-stream)
 end method;
 
 define method flush (session :: <stdio-session>) => ()
-  force-output(*standard-output*);
+  force-output(session.output-stream);
 end method;

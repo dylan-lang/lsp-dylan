@@ -714,7 +714,9 @@ define function lsp-server-top-level
   if (debug-opendylan?)
     enable-od-environment-debug-logging();
   end;
-  let session = make(<stdio-session>);
+  let session = make(<stdio-session>,
+                     input-stream: *standard-input*,
+                     output-stream: *standard-output*);
   block ()
     lsp-pre-init-state-loop(session);
     lsp-active-state-loop(session);
