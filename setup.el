@@ -6,16 +6,16 @@
 (setq lsp-enable-snippet nil)
 (setq lsp-server-trace "verbose")
 
-(defvar dylan-lsp-exe-pathname "lsp-dylan"
-  "Pathname of the lsp-dylan executable. Must be an absolute pathname
+(defvar dylan-lsp-exe-pathname "dylan-lsp-server"
+  "Name of the dylan-lsp-server executable. Must be an absolute pathname
    or the binary must be on your PATH.")
 
 (defvar dylan-lsp-debug-server t
-  "If true, the --debug-server option is passed to lsp-dylan, which
-   causes extra debug output from lsp-dylan in the *dylan-lsp* buffer.")
+  "If true, the --debug-server option is passed to dylan-lsp-server, which
+   causes extra debug output from dylan-lsp-server in the *dylan-lsp* buffer.")
 
 (defvar dylan-lsp-debug-opendylan t
-  "If true, the --debug-opendylan option is passed to lsp-dylan, which
+  "If true, the --debug-opendylan option is passed to dylan-lsp-server, which
    causes extra debug output from Open Dylan in the *dylan-lsp* buffer.")
 
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))

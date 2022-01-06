@@ -68,10 +68,10 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
    Obviously you may modify your Emacs init file instead, if you prefer.
 
 4. Open a Dylan source file and type `M-x lsp` to start the client. The client
-   starts the LSP server (the `lsp-dylan` executable) and connects to it. You
-   must either `(setq dylan-lsp-exe-pathname "/absolute/path/to/lsp-dylan")` in
-   your Emacs init file or make sure that the `lsp-dylan` binary is on your
-   `PATH`.
+   starts the LSP server (the `dylan-lsp-server` executable) and connects to
+   it. You must either `(setq dylan-lsp-exe-pathname
+   "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
+   that the `dylan-lsp-server` binary is on your `PATH`.
 
 ## VS Code Usage (1.45.0 on macOS)
 
