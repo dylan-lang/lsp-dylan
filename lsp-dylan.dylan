@@ -1,4 +1,4 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopsis: Language Server Protocol (LSP) server for Dylan
 Author: Peter
 Copyright: 2019
@@ -687,31 +687,33 @@ end function;
 
 define function lsp-shutdown-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-shutdown)
-    log-debug("lsp-shutdown-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    select (meth by =)
-      "exit" =>
-        log-debug("Dylan LSP server exiting");
-        clp/abort-command(0);
-      otherwise =>
-        // Respond to any request with an invalid error,
-        // Drop any notifications
-        if (id)
-          send-error-response(session, id, $invalid-request);
-        end;
-    end select;
-    flush(session);
-  end while;
+  block (return)
+    while (session.state == $session-shutdown)
+      log-debug("lsp-shutdown-state-loop: waiting for message");
+      let (meth, id, params) = receive-message(session);
+      select (meth by =)
+        "exit" =>
+          log-debug("Dylan LSP server exiting");
+          return();
+        otherwise =>
+          // Respond to any request with an invalid error.
+          // Drop any notifications.
+          if (id)
+            send-error-response(session, id, $invalid-request);
+          end;
+      end select;
+      flush(session);
+    end while;
+  end block;
 end function;
 
 define function lsp-server-top-level
-    (command :: <lsp-server-command-line>) => ()
-  *debug-mode* := command.debug-server?;
-  if (command.debug-opendylan?)
+    (#key debug-server? = #t, debug-opendylan? = #t) => ()
+  *debug-mode* := debug-server?;
+  initialize-logging();
+  if (debug-opendylan?)
     enable-od-environment-debug-logging();
   end;
-
   let session = make(<stdio-session>);
   block ()
     lsp-pre-init-state-loop(session);
@@ -745,36 +747,9 @@ define function enable-od-environment-debug-logging ()
   //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
 end function;
 
-define clp/command-line <lsp-server-command-line> ()
-  option debug-server? :: <boolean> = #t, // default to #f eventually
-    names: #("debug-server"),
-    kind: clp/<flag-option>,
-    help: "Turn on debugging for the LSP server.";
-  option debug-opendylan? :: <boolean> = #t, // default to #f eventually
-    names: #("debug-opendylan"),
-    kind: clp/<flag-option>,
-    help: "Turn on debugging for Open Dylan.";
-end clp/command-line;
-
-define function main
-    (name :: <string>, arguments :: <vector>)
-  initialize-logging();
-  let command = make(<lsp-server-command-line>,
-                     help: "Dylan LSP server");
-  block ()
-    clp/parse-command-line(command, application-arguments());
-    lsp-server-top-level(command);
-  exception (err :: clp/<abort-command-error>)
-    exit-application(clp/exit-status(err));
-  end;
-end function;
-
 ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
        document-lines-setter, unregister-file,
        one-off-debug, dump, show-warning, show-log, show-error);
-
-main(application-name(), application-arguments());
-
 
 
 // Local Variables:

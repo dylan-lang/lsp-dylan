@@ -1,4 +1,4 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopsis: Support routines for json-rpc
 Author: Peter
 Copyright: 2020

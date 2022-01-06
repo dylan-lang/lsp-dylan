@@ -1,4 +1,4 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopis: General constants and globals for LSP
 Author: Peter
 Copyright: 2020

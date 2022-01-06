@@ -24,12 +24,21 @@ define library lsp-dylan
   use strings;
   use system;
   use workspaces;
+
+  export
+    lsp-dylan,
+    lsp-dylan-impl;
 end library;
 
 define module lsp-dylan
+  create
+    lsp-server-top-level;
+end module;
+
+define module lsp-dylan-impl
+  use lsp-dylan;
+
   use build-system;
-  use command-line-parser,
-    prefix: "clp/";
   use command-lines;
   use commands;
   use common-dylan;
@@ -57,4 +66,8 @@ define module lsp-dylan
   use threads;
   use workspaces,
     prefix: "ws/";
-end module lsp-dylan;
+
+  // For test suite.
+  export
+    send-request;
+end module;

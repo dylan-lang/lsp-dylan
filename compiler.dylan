@@ -1,4 +1,4 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopsis: Communicaton with the Dylan command-line compiler
 Author: Peter
 Copyright: 2019
