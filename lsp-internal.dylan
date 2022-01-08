@@ -1,4 +1,4 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopis: General constants and globals for LSP
 Author: Peter
 Copyright: 2020
@@ -25,8 +25,8 @@ let $unknown-error-code :: <integer> = -32001;
 let $request-cancelled :: <integer> = -32800;
 let $content-modified :: <integer> = -32801;
 
-define function default-error-message(code :: <integer>)
-    => (message :: <string>)
+define function default-error-message
+    (code :: <integer>) => (message :: <string>)
   select (code)
     $parse-error => "Parse error";
     $invalid-request => "Invalid request";

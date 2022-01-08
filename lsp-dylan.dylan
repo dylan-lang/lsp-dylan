@@ -1,27 +1,24 @@
-Module: lsp-dylan
+Module: lsp-dylan-impl
 Synopsis: Language Server Protocol (LSP) server for Dylan
 Author: Peter
 Copyright: 2019
 
 
-define constant $lsp-log-target
-  = make(<rolling-file-log-target>,
-         pathname: merge-locators(as(<file-locator>,"lsp.log"),
-                                  temp-directory()));
-
-define constant $log
-  = make(<log>,
-         name: "lsp",
-         // Log to stderr so it shows up in the *dylan-lsp::stderr* buffer.
-         // Log to a rolling temp file so we have a history and because I've
-         // seen the Emacs LSP client's *dylan-lsp::stderr* buffer not be kept
-         // up to date when the process restarts.
-         targets: list($stderr-log-target,
-                       $lsp-log-target));
-
-define function local-log(m :: <string>, #rest params) => ()
-  apply(log-debug, m, params);
+// Log to stderr so it shows up in the *dylan-lsp::stderr* buffer.  Log to a
+// rolling temp file so we have a history and because I've seen the Emacs LSP
+// client's *dylan-lsp::stderr* buffer not be kept up to date when the process
+// restarts.
+define function initialize-logging ()
+  let file-target
+    = make(<rolling-file-log-target>,
+           pathname: merge-locators(as(<file-locator>,"lsp.log"),
+                                    temp-directory()));
+  *log* := make(<log>,
+                name: "lsp",
+                level: $debug-level,
+                targets: list($stderr-log-target, file-target));
 end function;
+
 
 define constant $message-type-error = 1;
 define constant $message-type-warning = 2;
@@ -40,36 +37,41 @@ define constant show-warning = curry(window/show-message, $message-type-warning)
 define constant show-info    = curry(window/show-message, $message-type-info);
 define constant show-log     = curry(window/show-message, $message-type-log);
 
-define function make-range(start, endp)
-  json("start", start, "end", endp);
+// It may be worth defining Dylan classes for these basic LSP objects, for
+// clarity and type checking. Also to/from-json methods.
+
+// Make a json Range object. bpos and epos are Position objects.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#range
+define function make-range (bpos, epos)
+  json("start", bpos, "end", epos)
 end function;
 
-// Make json for a Position object.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+// Make json for a Position object. Line and character are both zero-based.
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
 define function make-position (line, character)
   json("line", line, "character", character)
 end function;
 
 // Make json for a Location that's a 'zero size' range.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
-define function make-location (doc, line, character)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
+define function make-empty-location (doc :: <string>, line, character)
   let pos = make-position(line, character);
   json("uri", doc, "range", make-range(pos, pos))
 end function;
 
 // Decode a Position json object.  Note line and character are zero-based.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function decode-position (position)
- => (line :: <integer>, character :: <integer>)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
+define function decode-position
+    (position) => (line :: <integer>, character :: <integer>)
   let line = position["line"];
   let character = position["character"];
   values(line, character)
 end function;
 
 // Create a MarkupContent json object.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
-define function make-markup (txt, #key markdown)
-  let kind = if (markdown)
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
+define function make-markup (txt, #key markdown?)
+  let kind = if (markdown?)
                "markdown"
              else
                "plaintext"
@@ -78,14 +80,12 @@ define function make-markup (txt, #key markdown)
        "kind", kind)
 end function;
 
-define function handle-workspace/symbol (session :: <session>,
-                                         id :: <object>,
-                                         params :: <object>)
-  => ()
+define function handle-workspace/symbol
+    (session :: <session>, id :: <object>, params :: <object>) => ()
   // TODO this is only a dummy
   let query = params["query"];
-  local-log("Query: %s", query);
-  let range = make-range(make-position(0, 0), make-position(0,5));
+  log-debug("Query: %s", query);
+  let range = make-range(make-position(0, 0), make-position(0, 5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
                           "location", json("range", range,
@@ -108,7 +108,7 @@ define function handle-textDocument/hover
   let symbol = symbol-at-position(doc, line, column);
   if (symbol)
     let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1);
-    let hover = json("contents", make-markup(txt, markdown: #f));
+    let hover = json("contents", make-markup(txt, markdown?: #f));
     send-response(session, id, hover);
   else
     // No symbol found (probably out of range)
@@ -124,7 +124,7 @@ define function handle-textDocument/didOpen
   let languageId = textDocument["languageId"];
   let version = textDocument["version"];
   let text = textDocument["text"];
-  local-log("textDocument/didOpen: File %s of type %s, version %s, length %d",
+  log-debug("textDocument/didOpen: File %s of type %s, version %s, length %d",
             uri, languageId, version, size(text));
   // Only bother about dylan files for now.
   if (languageId = "dylan")
@@ -136,12 +136,12 @@ define function handle-textDocument/didOpen
     let u = as(<url>, uri);
     let f = make-file-locator(u);
     let (m, l) = file-module(*project*, f);
-    local-log("textDocument/didOpen: File: %= Module: %=, Library: %=",
+    log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
               as(<string>, f),
               if (m) environment-object-primitive-name(*project*, m) end,
               if (l) environment-object-primitive-name(*project*, l) end);
   else
-    local-log("textDocument/didOpen: no project found");
+    log-debug("textDocument/didOpen: no project found");
   end if;
 end function;
 
@@ -154,10 +154,10 @@ define function handle-textDocument/didSave
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
   let project = find-project-name();
-  local-log("textDocument/didSave: File %s, project %=", uri, project);
+  log-debug("textDocument/didSave: File %s, project %=", uri, project);
   if (project)
     let project-object = find-project(project);
-    local-log("textDocument/didSave: project = %=", project-object);
+    log-debug("textDocument/didSave: project = %=", project-object);
     if (project-object)
       let warnings = make(<stretchy-vector>);
       local method note-warning (#rest args)
@@ -169,14 +169,14 @@ define function handle-textDocument/didSave
       build-project(project-object,
                     link?: #f,
                     warning-callback: note-warning);
-      local-log("textDocument/didSave: done building %=", project);
+      log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warnings",
                 if (empty?(warnings)) "no" else warnings.size end);
     else
       show-error("Project %s not found.", project);
     end;
   else
-    local-log("handle-textDocument/didSave: project not found for %=", uri);
+    log-debug("handle-textDocument/didSave: project not found for %=", uri);
     show-error("Project %s not found.", project);
   end;
 end function;
@@ -207,14 +207,14 @@ define function apply-change
   if (range)
     show-error(session, "didChange doesn't support ranges yet");
   else
-    local-log("document replaced: %s", document.document-uri);
+    log-debug("document replaced: %s", document.document-uri);
     show-info(session, "Document content replaced");
     document-lines(document) := split-lines(text);
   end;
 end function;
 
 // Jump to definition.
-// See https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 define function handle-textDocument/definition
     (session :: <session>, id :: <object>, params :: <object>) => ()
   let text-document = params["textDocument"];
@@ -224,7 +224,7 @@ define function handle-textDocument/definition
   let doc = element($documents, uri, default: #f);
   let location = $null;
   if (~doc)
-    local-log("textDocument/definition: document not found: %=", uri);
+    log-debug("textDocument/definition: document not found: %=", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
   else
     unless (doc.document-module)
@@ -233,7 +233,7 @@ define function handle-textDocument/definition
                             directory: local-dir,
                             name: locator-name(doc.document-uri));
       let (mod, lib) = file-module(*project*, local-file);
-      local-log("textDocument/definition: module=%s, library=%s", mod, lib);
+      log-debug("textDocument/definition: module=%s, library=%s", mod, lib);
       doc.document-module := mod;
     end;
     let symbol = symbol-at-position(doc, line, character);
@@ -241,15 +241,15 @@ define function handle-textDocument/definition
       let (target, line, char)
         = lookup-symbol(session, symbol, module: doc.document-module);
       if (target)
-        local-log("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
+        log-debug("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
                   symbol, target, line, char);
         let uri = make-file-uri(target); // TODO
-        location := make-location(as(<string>, uri), line, char);
+        location := make-empty-location(as(<string>, uri), line, char);
       else
-        local-log("textDocument/definition: symbol %=, not found", symbol);
+        log-debug("textDocument/definition: symbol %=, not found", symbol);
       end;
     else
-      local-log("textDocument/definition: symbol is #f, nothing to lookup", symbol);
+      log-debug("textDocument/definition: symbol is #f, nothing to lookup", symbol);
       show-info(session, "No symbol found at current position.");
     end;
   end;
@@ -261,8 +261,8 @@ define function handle-workspace/didChangeConfiguration
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
-  local-log("Did change configuration");
-  local-log("Settings: %s", print-json-to-string(params));
+  log-debug("Did change configuration");
+  log-debug("Settings: %s", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
@@ -291,7 +291,7 @@ define function handle-initialized
 
   send-request(session, "client/registerCapability", json("registrations", list(hregistration, oregistration)),
                callback: method(session, params)
-                           local-log("Callback called back..%s", session);
+                           log-debug("Callback called back..%s", session);
                            show-info(session, "Thanks la")
                          end);
 */
@@ -310,7 +310,7 @@ define function handle-initialized
                    "OPEN_DYLAN_USER_REGISTRIES",
                    "OPEN_DYLAN_USER_ROOT",
                    "PATH"))
-    local-log("handle-initialized: %s=%s", var, environment-variable(var));
+    log-debug("handle-initialized: %s=%s", var, environment-variable(var));
   end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
@@ -320,9 +320,9 @@ end function handle-initialized;
 
 define function test-open-project(session) => ()
   let project-name = find-project-name();
-  local-log("test-open-project: Found project name %=", project-name);
+  log-debug("test-open-project: Found project name %=", project-name);
   *project* := open-project(*server*, project-name);
-  local-log("test-open-project: Project opened");
+  log-debug("test-open-project: Project opened");
 
   // Let's see if we can find a module.
 
@@ -331,37 +331,37 @@ define function test-open-project(session) => ()
   // punts. Not sure who's responsible for opening the db and setting that slot
   // or why it has worked at all in the past.
   let (m, l) = file-module(*project*, "library.dylan");
-  local-log("test-open-project: m = %=, l = %=", m, l);
-  local-log("test-open-project: Try Module: %=, Library: %=",
+  log-debug("test-open-project: m = %=, l = %=", m, l);
+  log-debug("test-open-project: Try Module: %=, Library: %=",
             m & environment-object-primitive-name(*project*, m),
             l & environment-object-primitive-name(*project*, l));
 
-  local-log("test-open-project: project-library = %=", project-library(*project*));
-  local-log("test-open-project: project db = %=", project-compiler-database(*project*));
+  log-debug("test-open-project: project-library = %=", project-library(*project*));
+  log-debug("test-open-project: project db = %=", project-compiler-database(*project*));
 
   *module* := m;
   if (*project*)
     let warn = curry(log-warning, "open-project-compiler-database: %=");
     let db = open-project-compiler-database(*project*, warning-callback: warn);
-    local-log("test-open-project: db = %=", db);
+    log-debug("test-open-project: db = %=", db);
     for (s in project-sources(*project*))
       let rl = source-record-location(s);
-      local-log("test-open-project: Source: %=, a %= in %=",
+      log-debug("test-open-project: Source: %=, a %= in %=",
                 s,
                 object-class(s),
                 as(<string>, rl));
     end;
-    local-log("test-open-project: listing project file libraries:");
+    log-debug("test-open-project: listing project file libraries:");
     do-project-file-libraries(method (l, r)
-                                local-log("test-open-project: Lib: %= Rec: %=", l, r);
+                                log-debug("test-open-project: Lib: %= Rec: %=", l, r);
                               end,
                               *project*,
                               as(<file-locator>, "library.dylan"));
   else
-    local-log("test-open-project: project did't open");
+    log-debug("test-open-project: project did't open");
   end if;
-  local-log("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
-  local-log("test-open-project: Database: %=", project-compiler-database(*project*));
+  log-debug("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
+  log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
 end function;
 
 define function ensure-trailing-slash
@@ -384,30 +384,27 @@ define function handle-initialize
   // The very first received message is "initialize" (I think), and it seems
   // that for some reason it doesn't get logged, so log params here. The params
   // for this method are copious, so we log them with pretty printing.
-  local-log("handle-initialize(%=, %=, %s)",
+  log-debug("handle-initialize(%=, %=, %s)",
             session, id,
             with-output-to-string (s)
               print-json(params, s, indent: 2)
             end);
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
-    "off" => begin
-               *trace-messages* := #f;
-               *trace-verbose* := #f;
-             end;
-    "messages" => begin
-                    *trace-messages* := #t;
-                    *trace-verbose* := #f;
-                  end;
-    "verbose" => begin
-                   *trace-messages* := #t;
-                   *trace-verbose* := #t;
-                 end;
+    "off" =>
+      *trace-messages* := #f;
+      *trace-verbose* := #f;
+    "messages" =>
+      *trace-messages* := #t;
+      *trace-verbose* := #f;
+    "verbose" =>
+      *trace-messages* := #t;
+      *trace-verbose* := #t;
     otherwise =>
       log-error("handle-initialize: trace must be"
                   " \"off\", \"messages\" or \"verbose\", not %=", trace);
   end select;
-  local-log("handle-initialize: debug: %s, messages: %s, verbose: %s",
+  log-debug("handle-initialize: debug: %s, messages: %s, verbose: %s",
             *debug-mode*, *trace-messages*, *trace-verbose*);
 
   // Save the workspace root (if provided) for later.
@@ -419,7 +416,7 @@ define function handle-initialize
   if (session.root)
     working-directory() := session.root;
   end;
-  local-log("handle-initialize: Working directory is now %s", working-directory());
+  log-debug("handle-initialize: Working directory is now %s", working-directory());
 
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
@@ -446,7 +443,7 @@ define function find-workspace-root
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
-  let workspace = ws/workspace-file() & ws/find-workspace(directory: directory);
+  let workspace = ws/find-workspace-file(directory) & ws/load-workspace(directory);
   if (workspace)
     ws/workspace-directory(workspace)
   else
@@ -468,7 +465,7 @@ end function;
 define function handle-workspace/workspaceFolders
     (session :: <session>, params :: <object>) => ()
   // TODO: handle multi-folder workspaces.
-  local-log("Workspace folders were received: %=", params);
+  log-debug("Workspace folders were received: %=", params);
 end;
 
 // Maps URI strings to <open-document> objects.
@@ -485,7 +482,7 @@ define class <open-document> (<object>)
 end class;
 
 define function register-file (uri, contents)
-  local-log("register-file(%=)", uri);
+  log-debug("register-file(%=)", uri);
   let lines = split-lines(contents);
   let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
   $documents[uri] := doc;
@@ -520,7 +517,7 @@ define function symbol-at-position
     let name = copy-sequence(line, start: symbol-start, end: symbol-end);
     ~empty?(name) & name
   else
-    local-log("line %d column %d not in range for document %s",
+    log-debug("line %d column %d not in range for document %s",
               line, column, doc.document-uri);
     #f
   end
@@ -568,7 +565,7 @@ define function lookup-symbol
     let column = loc.source-location-start-column;
     values(absolute-path, line - 1, column)
   else
-    local-log("Looking up %s, not found", symbol);
+    log-debug("Looking up %s, not found", symbol);
     #f
   end
 end function;
@@ -589,21 +586,21 @@ define function find-project-name
     () => (name :: false-or(<string>))
   if (*project-name*)
     // We've set it explicitly
-    local-log("Project name explicitly:%s", *project-name*);
+    log-debug("Project name explicitly:%s", *project-name*);
     *project-name*
-  elseif (ws/workspace-file())
+  elseif (ws/find-workspace-file(working-directory()))
     // There's a dylan-tool workspace.
-    let workspace = ws/find-workspace();
+    let workspace = ws/load-workspace(working-directory());
     let library-name = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
-      local-log("found dylan-tool workspace default library name %=", library-name);
+      log-debug("found dylan-tool workspace default library name %=", library-name);
       library-name
     else
-      local-log("dylan-tool workspace has no default library configured.");
+      log-debug("dylan-tool workspace has no default library configured.");
       #f
     end;
   else
-    local-log("no workspace file found starting in %s", working-directory());
+    log-debug("no workspace file found starting in %s", working-directory());
     // Guess based on there being one .lid file in the workspace root
     block(return)
       local method return-lid(dir, name, type)
@@ -620,7 +617,7 @@ define function find-project-name
               end if;
             end method;
       do-directory(return-lid, working-directory());
-      local-log("find-project-name found no LID files in %s", working-directory());
+      log-debug("find-project-name found no LID files in %s", working-directory());
       #f
     end block
   end if
@@ -629,11 +626,13 @@ end function;
 define function lsp-pre-init-state-loop
     (session :: <session>) => ()
   while (session.state == $session-preinit)
-    local-log("lsp-pre-init-state-loop: waiting for message");
+    log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "initialize" => handle-initialize(session, id, params);
-      "exit" => session.state := $session-killed;
+      "initialize" =>
+        handle-initialize(session, id, params);
+      "exit" =>
+        session.state := $session-killed;
       otherwise =>
         // Respond to any request with an error, and drop any notifications
         if (id)
@@ -647,26 +646,36 @@ end function;
 define function lsp-active-state-loop
     (session :: <session>) => ()
   while (session.state == $session-active)
-    local-log("lsp-active-state-loop: waiting for message");
+    log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     select (meth by =)
-      "exit" => session.state := $session-killed;
-      "initialize" => send-error-response(session, id, $invalid-request);
-      "initialized" => handle-initialized(session, id, params);
+      "exit" =>
+        session.state := $session-killed;
+      "initialize" =>
+        send-error-response(session, id, $invalid-request);
+      "initialized" =>
+        handle-initialized(session, id, params);
       "shutdown" =>
         send-response(session, id, $null);
         session.state := $session-shutdown;
-      "textDocument/definition" => handle-textDocument/definition(session, id, params);
-      "textDocument/didChange" => handle-textDocument/didChange(session, id, params);
-      "textDocument/didOpen" => handle-textDocument/didOpen(session, id, params);
-      "textDocument/didSave" => handle-textDocument/didSave(session, id, params);
-      "textDocument/hover" => handle-textDocument/hover(session, id, params);
-      "workspace/didChangeConfiguration" => handle-workspace/didChangeConfiguration(session, id, params);
-      "workspace/symbol" => handle-workspace/symbol(session, id, params);
+      "textDocument/definition" =>
+        handle-textDocument/definition(session, id, params);
+      "textDocument/didChange" =>
+        handle-textDocument/didChange(session, id, params);
+      "textDocument/didOpen" =>
+        handle-textDocument/didOpen(session, id, params);
+      "textDocument/didSave" =>
+        handle-textDocument/didSave(session, id, params);
+      "textDocument/hover" =>
+        handle-textDocument/hover(session, id, params);
+      "workspace/didChangeConfiguration" =>
+        handle-workspace/didChangeConfiguration(session, id, params);
+      "workspace/symbol" =>
+        handle-workspace/symbol(session, id, params);
       otherwise =>
         // Respond to any other request with an not-implemented error.
         // Drop any other notifications
-        local-log("lsp-active-state-loop: %s method '%s' is not yet implemented.",
+        log-debug("lsp-active-state-loop: %s method '%s' is not yet implemented.",
                   if (id) "Request" else "Notification" end, meth);
         if (id)
           send-error-response(session, id, $method-not-found);
@@ -678,38 +687,42 @@ end function;
 
 define function lsp-shutdown-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-shutdown)
-    local-log("lsp-shutdown-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    select (meth by =)
-      "exit" =>
-        local-log("Dylan LSP server exiting");
-        clp/abort-command(0);
-      otherwise =>
-        // Respond to any request with an invalid error,
-        // Drop any notifications
-        if (id)
-          send-error-response(session, id, $invalid-request);
-        end;
-    end select;
-    flush(session);
-  end while;
+  block (return)
+    while (session.state == $session-shutdown)
+      log-debug("lsp-shutdown-state-loop: waiting for message");
+      let (meth, id, params) = receive-message(session);
+      select (meth by =)
+        "exit" =>
+          log-debug("Dylan LSP server exiting");
+          return();
+        otherwise =>
+          // Respond to any request with an invalid error.
+          // Drop any notifications.
+          if (id)
+            send-error-response(session, id, $invalid-request);
+          end;
+      end select;
+      flush(session);
+    end while;
+  end block;
 end function;
 
 define function lsp-server-top-level
-    (command :: <lsp-server-command-line>) => ()
-  *debug-mode* := command.debug-server?;
-  if (command.debug-opendylan?)
+    (#key debug-server? = #t, debug-opendylan? = #t) => ()
+  *debug-mode* := debug-server?;
+  initialize-logging();
+  if (debug-opendylan?)
     enable-od-environment-debug-logging();
   end;
-
-  let session = make(<stdio-session>);
+  let session = make(<stdio-session>,
+                     input-stream: *standard-input*,
+                     output-stream: *standard-output*);
   block ()
     lsp-pre-init-state-loop(session);
     lsp-active-state-loop(session);
     lsp-shutdown-state-loop(session);
   cleanup
-    local-log("lsp-server-top-level exiting: bye!");
+    log-debug("lsp-server-top-level exiting: bye!");
   end;
 end function;
 
@@ -729,43 +742,16 @@ define function enable-od-environment-debug-logging ()
   local method lsp-debug-out (fn :: <function>)
           let (fmt, #rest args) = apply(values, fn());
           // I wish we could log the "part" here, but debug-out drops it.
-          apply(local-log, concatenate("debug-out: ", fmt), args)
+          apply(log-debug, concatenate("debug-out: ", fmt), args)
         end;
   debug-out-function() := lsp-debug-out;
   // Not yet...
   //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
 end function;
 
-define clp/command-line <lsp-server-command-line> ()
-  option debug-server? :: <boolean> = #t, // default to #f eventually
-    names: #("debug-server"),
-    kind: clp/<flag-option>,
-    help: "Turn on debugging for the LSP server.";
-  option debug-opendylan? :: <boolean> = #t, // default to #f eventually
-    names: #("debug-opendylan"),
-    kind: clp/<flag-option>,
-    help: "Turn on debugging for Open Dylan.";
-end clp/command-line;
-
-define function main
-    (name :: <string>, arguments :: <vector>)
-  *log* := $log;
-  let command = make(<lsp-server-command-line>,
-                     help: "Dylan LSP server");
-  block ()
-    clp/parse-command-line(command, application-arguments());
-    lsp-server-top-level(command);
-  exception (err :: clp/<abort-command-error>)
-    exit-application(clp/exit-status(err));
-  end;
-end function;
-
 ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
        document-lines-setter, unregister-file,
        one-off-debug, dump, show-warning, show-log, show-error);
-
-main(application-name(), application-arguments());
-
 
 
 // Local Variables:

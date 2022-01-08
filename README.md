@@ -7,7 +7,7 @@ Dylan.
 
 ## Current Status
 
-As of 2021.03.14, the only function fully implemented is "jump to definition"
+As of 2022-01-04, the only function fully implemented is "jump to definition"
 and (at least in Emacs) when you jump to another `.dylan` file, that file does
 not in automatically have LSP enabled so you must use `M-x lsp` again.
 
@@ -21,7 +21,7 @@ associated with the file you're editing when you turn on LSP in your editor. It
 makes two attempts, in the following order:
 
 1. Search up in the directory structure until it finds a `workspace.json` file,
-   which indicates a [dylan-tool](https://github.com/cgay/dylan-tool)
+   which indicates a [dylan-tool](https://github.com/dylan-lang/dylan-tool)
    workspace.  In this case it looks for the "default-library" setting in the
    workspace file and opens that library.  If there is no default library set
    and there is only one "active" library, it uses that. Otherwise it fails.
@@ -37,7 +37,7 @@ makes two attempts, in the following order:
 
 Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
-1. Install lsp-mode (see github project page for details)
+1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
 2. Set environment variables.
 
@@ -53,28 +53,27 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
       Open Dylan install directory (which is not under source control) will be
       opened. For example:
 
-        export OPEN_DYLAN_USER_REGISTRIES=/home/you/lsp-dylan/registry:/home/you/opendylan/sources/registry
+        export OPEN_DYLAN_USER_REGISTRIES=/path/to/lsp-dylan/registry:/path/to/opendylan/sources/registry
 
    b. Point `OPEN_DYLAN_RELEASE_INSTALL` at the Open Dylan installation
       directory. This is necessary so that it can find the Jam build scripts,
       and core libraries. For example:
 
-        export OPEN_DYLAN_RELEASE_INSTALL=/home/you/opendylan-2021.1
+        export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2021.1
 
 3. Start emacs and make sure that `setup.el` is loaded. For example:
 
-     `emacs --load=/home/you/lsp-dylan/setup.el`
+     `emacs --load=/path/to/lsp-dylan/setup.el`
 
    Obviously you may modify your Emacs init file instead, if you prefer.
 
 4. Open a Dylan source file and type `M-x lsp` to start the client. The client
-   starts the LSP server (the `lsp-dylan` executable) and connects to it.
+   starts the LSP server (the `dylan-lsp-server` executable) and connects to
+   it. You must either `(setq dylan-lsp-exe-pathname
+   "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
+   that the `dylan-lsp-server` binary is on your `PATH`.
 
-   Currently `lsp-dylan` must be in `./_build/bin/lsp-dylan` or
-   `${DYLAN}/workspaces/lsp/_build/bin/lsp-dylan`. (TODO: search for it on
-   `PATH`.)
-
-## VS Code Usage (1.45.0 on macos)
+## VS Code Usage (1.45.0 on macOS)
 
 1. Open the `vscode` folder in VS Code
 1. First time only, `npm install` to get the dependencies
