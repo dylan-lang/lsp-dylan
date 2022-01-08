@@ -131,13 +131,10 @@ define function handle-textDocument/didOpen
     register-file(uri, text);
   end if;
   if (*project*)
-    // This is just test code.
-    // Let's see if we can find a module
-    let u = as(<url>, uri);
-    let f = make-file-locator(u);
-    let (m, l) = file-module(*project*, f);
+    let file = file-uri-to-locator(uri);
+    let (m, l) = file-module(*project*, file);
     log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
-              as(<string>, f),
+              as(<string>, file),
               if (m) environment-object-primitive-name(*project*, m) end,
               if (l) environment-object-primitive-name(*project*, l) end);
   else
@@ -170,8 +167,9 @@ define function handle-textDocument/didSave
                     link?: #f,
                     warning-callback: note-warning);
       log-debug("textDocument/didSave: done building %=", project);
-      show-info(session, "Build complete, %s warnings",
-                if (empty?(warnings)) "no" else warnings.size end);
+      show-info(session, "Build complete, %s warning%s",
+                if (empty?(warnings)) "no" else warnings.size end,
+                if (warnings.size == 1) "" else "s" end);
     else
       show-error("Project %s not found.", project);
     end;
@@ -228,11 +226,8 @@ define function handle-textDocument/definition
     show-error(session, format-to-string("Document not found: %s", uri));
   else
     unless (doc.document-module)
-      let local-dir = make(<directory-locator>, path: locator-path(doc.document-uri));
-      let local-file = make(<file-locator>,
-                            directory: local-dir,
-                            name: locator-name(doc.document-uri));
-      let (mod, lib) = file-module(*project*, local-file);
+      let file = file-uri-to-locator(doc.document-uri);
+      let (mod, lib) = file-module(*project*, file);
       log-debug("textDocument/definition: module=%s, library=%s", mod, lib);
       doc.document-module := mod;
     end;
@@ -243,8 +238,8 @@ define function handle-textDocument/definition
       if (target)
         log-debug("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
                   symbol, target, line, char);
-        let uri = make-file-uri(target); // TODO
-        location := make-empty-location(as(<string>, uri), line, char);
+        let uri :: <string> = locator-to-file-uri(target);
+        location := make-empty-location(uri, line, char);
       else
         log-debug("textDocument/definition: symbol %=, not found", symbol);
       end;
@@ -438,8 +433,7 @@ define function find-workspace-root
     (root-uri, root-path) => (root :: false-or(<directory-locator>))
   let directory
     = if (root-uri)
-        let url = as(<url>, ensure-trailing-slash(root-uri));
-        make(<directory-locator>, path: locator-path(url))
+        file-uri-to-locator(ensure-trailing-slash(root-uri))
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
@@ -473,7 +467,8 @@ define constant $documents = make(<string-table>);
 
 // Represents one open file (given to us by textDocument/didOpen)
 define class <open-document> (<object>)
-  constant slot document-uri :: <url>,
+  // The original URI string passed to us by the client to open this document.
+  constant slot document-uri :: <string>,
     required-init-keyword: uri:;
   slot document-module :: false-or(<module-object>) = #f,
     init-keyword: module:;
@@ -484,7 +479,7 @@ end class;
 define function register-file (uri, contents)
   log-debug("register-file(%=)", uri);
   let lines = split-lines(contents);
-  let doc = make(<open-document>, uri: as(<url>, uri), lines: lines);
+  let doc = make(<open-document>, uri: uri, lines: lines);
   $documents[uri] := doc;
 end function;
 
@@ -523,33 +518,23 @@ define function symbol-at-position
   end
 end function;
 
-define function unregister-file (uri)
-  // TODO
-  remove-key!($documents, uri)
+// Turn a URL string received from the client into file or directory locator,
+// depending on whether it ends in a '/' character.
+define function file-uri-to-locator
+    (url :: <string>) => (loc :: <locator>)
+  assert(starts-with?(url, "file://"));
+  let stripped = copy-sequence(url, start: size("file://"));
+  if (ends-with?(stripped, "/"))
+    as(<directory-locator>, stripped)
+  else
+    as(<file-locator>, stripped)
+  end
 end function;
 
-// Make a file:// URI from a local file path.
-// This is supposed to follow RFC 8089
-// (locators library not v. helpful here)
-define function make-file-uri
-    (f :: <file-locator>) => (uri :: <url>)
-  if (f.locator-relative?)
-    f := merge-locators(f, working-directory());
-  end;
-  let server = make(<file-server>, host: "");
-  let directory = make(<directory-url>,
-                       server: server,
-                       path: locator-path(f));
-  make(<file-url>,
-       directory: directory,
-       name: locator-name(f))
-end function;
-
-define function make-file-locator
-    (f :: <url>) => (loc :: <file-locator>)
-  // TODO - what if it isnt a file:/, etc etc
-  let d = make(<directory-locator>, path: locator-path(f));
-  make(<file-locator>, directory: d, name: locator-name(f))
+// Turn a locator into a file URL string for sending back to the client.
+define function locator-to-file-uri
+    (loc :: <locator>) => (uri :: <string>)
+  concatenate("file://", as(<string>, loc))
 end function;
 
 // Look up a symbol. Return the containing doc,
@@ -750,7 +735,7 @@ define function enable-od-environment-debug-logging ()
 end function;
 
 ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
-       document-lines-setter, unregister-file,
+       document-lines-setter,
        one-off-debug, dump, show-warning, show-log, show-error);
 
 
