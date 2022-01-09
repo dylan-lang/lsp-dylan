@@ -20,8 +20,8 @@ define function initialize-logging ()
 end function;
 
 
-define function handle-workspace/symbol
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler workspace/symbol
+    (session :: <session>, id, params)
   // TODO this is only a dummy
   let query = params["query"];
   log-debug("Query: %s", query);
@@ -31,14 +31,14 @@ define function handle-workspace/symbol
                           "location", json("range", range,
                                            "uri", "file:///home/peter/Projects/lsp-dylan/lsp-dylan.dylan")));
   send-response(session, id, symbols);
-end function;
+end handler;
 
 // Show information about a symbol when we hover the cursor over it
 // See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
 // Parameters: textDocument, position, (optional) workDoneToken
 // Returns: contents, (optional) range
-define function handle-textDocument/hover
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler textDocument/hover
+    (session :: <session>, id, params)
   // TODO this is only a dummy
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
@@ -54,10 +54,10 @@ define function handle-textDocument/hover
     // No symbol found (probably out of range)
     send-response(session, id, #f);
   end;
-end function;
+end handler;
 
-define function handle-textDocument/didOpen
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler textDocument/didOpen
+    (session :: <session>, id, params)
   // TODO this is only a dummy
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
@@ -80,14 +80,14 @@ define function handle-textDocument/didOpen
   else
     log-debug("textDocument/didOpen: no project found");
   end if;
-end function;
+end handler;
 
 // A document was saved. For Emacs, this is called when M-x lsp is executed on
 // a new file. For now we don't care about the message at all, we just trigger
 // a compilation of the associated project (if any) unconditionally.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
-define function handle-textDocument/didSave
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler textDocument/didSave
+    (session :: <session>, id, params)
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
   // TODO(cgay): obviously we should be passing uri to find-project-name here.
@@ -113,7 +113,7 @@ define function handle-textDocument/didSave
     log-debug("handle-textDocument/didSave: project not found for %=", uri);
     show-error("Project %s not found.", project);
   end;
-end function;
+end handler;
 
 define variable *previous-warnings-by-uri* = #f;
 
@@ -185,8 +185,8 @@ define function publish-diagnostics
 end function;
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didChange
-define function handle-textDocument/didChange
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler textDocument/didChange
+    (session :: <session>, id, params)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let document = element($documents, uri, default: #f);
@@ -196,9 +196,11 @@ define function handle-textDocument/didChange
       apply-change(session, document, change);
     end;
   else
+    // TODO: handlers should just signal an error of a certain type and
+    // invoke-message-handler should DTRT.
     show-error(session, format-to-string("Document not found on server: %s", uri));
   end;
-end function;
+end handler;
 
 // Apply a sequence of changes to a document. Each change is a
 // TextDocumentContentChangeEvent json object that has a "text" attribute and optional
@@ -218,8 +220,8 @@ end function;
 
 // Jump to definition.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
-define function handle-textDocument/definition
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler textDocument/definition
+    (session :: <session>, id, params)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
@@ -254,10 +256,10 @@ define function handle-textDocument/definition
     end;
   end;
   send-response(session, id, location);
-end function;
+end handler;
 
-define function handle-workspace/didChangeConfiguration
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler workspace/didChangeConfiguration
+    (session :: <session>, id, params)
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
@@ -270,7 +272,7 @@ define function handle-workspace/didChangeConfiguration
   *project-name* := (project-name ~= "") & project-name;
   //show-info(session, "The config was changed");
   test-open-project(session);
-end function;
+end handler;
 
 /* Handler for 'initialized' message.
  *
@@ -281,8 +283,8 @@ end function;
  * 'initialize' message.
  * Here also we will start the compiler session.
  */
-define function handle-initialized
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler initialized
+    (session :: <session>, id, params)
   /* Commented out because we don't need to do this (yet)
   let hregistration = json("id", "dylan-reg-hover",
                            "method", "textDocument/hover");
@@ -310,15 +312,15 @@ define function handle-initialized
                    "OPEN_DYLAN_USER_REGISTRIES",
                    "OPEN_DYLAN_USER_ROOT",
                    "PATH"))
-    log-debug("handle-initialized: %s=%s", var, environment-variable(var));
+    log-debug("initialized: %s=%s", var, environment-variable(var));
   end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
   test-open-project(session);
-end function handle-initialized;
+end handler;
 
-define function test-open-project(session) => ()
+define function test-open-project (session) => ()
   let project-name = find-project-name();
   log-debug("test-open-project: Found project name %=", project-name);
   *project* := open-project(*server*, project-name);
@@ -379,12 +381,12 @@ end function;
 // In the future we can register capabilities dynamically by sending messages
 // back to the client; this seems to be the preferred 'new' way to do things.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
-define function handle-initialize
-    (session :: <session>, id :: <object>, params :: <object>) => ()
+define handler initialize
+    (session :: <session>, id, params)
   // The very first received message is "initialize" (I think), and it seems
   // that for some reason it doesn't get logged, so log params here. The params
   // for this method are copious, so we log them with pretty printing.
-  log-debug("handle-initialize(%=, %=, %s)",
+  log-debug("initialize(%=, %=, %s)",
             session, id,
             with-output-to-string (s)
               print-json(params, s, indent: 2)
@@ -401,10 +403,10 @@ define function handle-initialize
       *trace-messages* := #t;
       *trace-verbose* := #t;
     otherwise =>
-      log-error("handle-initialize: trace must be"
-                  " \"off\", \"messages\" or \"verbose\", not %=", trace);
+      log-error("initialize: trace must be 'off', 'messages' or 'verbose', not %=",
+                trace);
   end select;
-  log-debug("handle-initialize: debug: %s, messages: %s, verbose: %s",
+  log-debug("initialize: debug: %s, messages: %s, verbose: %s",
             *debug-mode*, *trace-messages*, *trace-verbose*);
 
   // Save the workspace root (if provided) for later.
@@ -414,9 +416,10 @@ define function handle-initialize
   let root-path = element(params, "rootPath", default: #f);
   session.root := find-workspace-root(root-uri, root-path);
   if (session.root)
+    log-info("Found Dylan workspace root: %s", session.root);
     working-directory() := session.root;
   end;
-  log-debug("handle-initialize: Working directory is now %s", working-directory());
+  log-info("Dylan LSP server working directory: %s", working-directory());
 
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #f,
@@ -427,7 +430,7 @@ define function handle-initialize
   send-response(session, id, response-params);
   // All OK to proceed.
   session.state := $session-active;
-end function;
+end handler;
 
 // Find the workspace root. The "rootUri" LSP parameter takes precedence over
 // the deprecated "rootPath" LSP parameter. We first look for a `dylan-tool`
@@ -461,11 +464,11 @@ define function find-workspace-root
   end
 end function;
 
-define function handle-workspace/workspaceFolders
-    (session :: <session>, params :: <object>) => ()
+define handler workspace/workspaceFolders
+    (session :: <session>, id, params)
   // TODO: handle multi-folder workspaces.
   log-debug("Workspace folders were received: %=", params);
-end;
+end handler;
 
 // Maps URI strings to <open-document> objects.
 define constant $documents = make(<string-table>);
@@ -616,22 +619,21 @@ end function;
 // TODO: move top-level loop into the server exe once handler infra is
 // generalized so there's no need to export the handlers.
 
+define handler exit (session :: <session>, id, params)
+  session.state := $session-killed;
+end handler;
+
 define function lsp-pre-init-state-loop
     (session :: <session>) => ()
   while (session.state == $session-preinit)
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
-    select (meth by =)
-      "initialize" =>
-        handle-initialize(session, id, params);
-      "exit" =>
-        session.state := $session-killed;
-      otherwise =>
-        // Respond to any request with an error, and drop any notifications
-        if (id)
-          send-error-response(session, id, $server-not-initialized);
-        end if;
-    end select;
+    if (meth = "initialize" | meth = "exit")
+      invoke-message-handler(meth, session, id, params);
+    elseif (id)
+      // Respond to any request with an error, and drop any notifications
+      send-error-response(session, id, $server-not-initialized);
+    end;
     flush(session);
   end while;
 end function;
@@ -641,39 +643,7 @@ define function lsp-active-state-loop
   while (session.state == $session-active)
     log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
-    select (meth by =)
-      "exit" =>
-        session.state := $session-killed;
-      "initialize" =>
-        send-error-response(session, id, $invalid-request);
-      "initialized" =>
-        handle-initialized(session, id, params);
-      "shutdown" =>
-        send-response(session, id, $null);
-        session.state := $session-shutdown;
-      "textDocument/definition" =>
-        handle-textDocument/definition(session, id, params);
-      "textDocument/didChange" =>
-        handle-textDocument/didChange(session, id, params);
-      "textDocument/didOpen" =>
-        handle-textDocument/didOpen(session, id, params);
-      "textDocument/didSave" =>
-        handle-textDocument/didSave(session, id, params);
-      "textDocument/hover" =>
-        handle-textDocument/hover(session, id, params);
-      "workspace/didChangeConfiguration" =>
-        handle-workspace/didChangeConfiguration(session, id, params);
-      "workspace/symbol" =>
-        handle-workspace/symbol(session, id, params);
-      otherwise =>
-        // Respond to any other request with an not-implemented error.
-        // Drop any other notifications
-        log-debug("lsp-active-state-loop: %s method '%s' is not yet implemented.",
-                  if (id) "Request" else "Notification" end, meth);
-        if (id)
-          send-error-response(session, id, $method-not-found);
-        end;
-    end select;
+    invoke-message-handler(meth, session, id, params);
     flush(session);
   end while;
 end function;
@@ -684,17 +654,19 @@ define function lsp-shutdown-state-loop
     while (session.state == $session-shutdown)
       log-debug("lsp-shutdown-state-loop: waiting for message");
       let (meth, id, params) = receive-message(session);
-      select (meth by =)
-        "exit" =>
-          log-debug("Dylan LSP server exiting");
-          return();
-        otherwise =>
-          // Respond to any request with an invalid error.
-          // Drop any notifications.
-          if (id)
-            send-error-response(session, id, $invalid-request);
-          end;
-      end select;
+      if (meth = "exit")
+        log-debug("Dylan LSP server exiting");
+        return();
+      else
+        // Respond to any other request with an not-implemented error.
+        // Drop notifications, which are distinguished by not having an id.
+        log-debug("lsp-shutdown-state-loop: %s method %= is not yet implemented.",
+                  if (id) "Request" else "Notification" end,
+                  meth);
+        if (id)
+          send-error-response(session, id, $invalid-request);
+        end;
+      end;
       flush(session);
     end while;
   end block;
