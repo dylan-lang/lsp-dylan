@@ -173,7 +173,7 @@ define generic send-response
 define generic send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message, error-data)
-  => ();
+ => ();
 
 /*
  * Send an LSP notification-type message.
@@ -289,7 +289,7 @@ define method send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message :: false-or(<string>),
           error-data)
-    => ()
+ => ()
   let message = make-message(id: id);
   let params = json("code", error-code,
                     "message", error-message | default-error-message(error-code));

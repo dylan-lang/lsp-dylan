@@ -20,66 +20,6 @@ define function initialize-logging ()
 end function;
 
 
-define constant $message-type-error = 1;
-define constant $message-type-warning = 2;
-define constant $message-type-info = 3;
-define constant $message-type-log = 4;
-
-define method window/show-message
-    (msg-type :: <integer>, session :: <session>, fmt :: <string>, #rest args) => ()
-  let msg = apply(format-to-string, fmt, args);
-  let params = json("type", msg-type, "message", msg);
-  send-notification(session, "window/showMessage", params);
-end method;
-
-define constant show-error   = curry(window/show-message, $message-type-error);
-define constant show-warning = curry(window/show-message, $message-type-warning);
-define constant show-info    = curry(window/show-message, $message-type-info);
-define constant show-log     = curry(window/show-message, $message-type-log);
-
-// It may be worth defining Dylan classes for these basic LSP objects, for
-// clarity and type checking. Also to/from-json methods.
-
-// Make a json Range object. bpos and epos are Position objects.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#range
-define function make-range (bpos, epos)
-  json("start", bpos, "end", epos)
-end function;
-
-// Make json for a Position object. Line and character are both zero-based.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function make-position (line, character)
-  json("line", line, "character", character)
-end function;
-
-// Make json for a Location that's a 'zero size' range.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
-define function make-empty-location (doc :: <string>, line, character)
-  let pos = make-position(line, character);
-  json("uri", doc, "range", make-range(pos, pos))
-end function;
-
-// Decode a Position json object.  Note line and character are zero-based.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function decode-position
-    (position) => (line :: <integer>, character :: <integer>)
-  let line = position["line"];
-  let character = position["character"];
-  values(line, character)
-end function;
-
-// Create a MarkupContent json object.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
-define function make-markup (txt, #key markdown?)
-  let kind = if (markdown?)
-               "markdown"
-             else
-               "plaintext"
-             end;
-  json("value", txt,
-       "kind", kind)
-end function;
-
 define function handle-workspace/symbol
     (session :: <session>, id :: <object>, params :: <object>) => ()
   // TODO this is only a dummy
@@ -174,11 +114,6 @@ define function handle-textDocument/didSave
     show-error("Project %s not found.", project);
   end;
 end function;
-
-define constant $diagnostic-severity-error = 1;
-define constant $diagnostic-severity-warning = 2;
-//define constant $diagnostic-severity-information = 3;
-//define constant $diagnostic-severity-hint = 4;
 
 define variable *previous-warnings-by-uri* = #f;
 
@@ -677,6 +612,9 @@ define function find-project-name
     end block
   end if
 end function;
+
+// TODO: move top-level loop into the server exe once handler infra is
+// generalized so there's no need to export the handlers.
 
 define function lsp-pre-init-state-loop
     (session :: <session>) => ()
