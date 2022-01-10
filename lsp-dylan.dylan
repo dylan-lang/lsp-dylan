@@ -6,22 +6,6 @@ Copyright: 2019
 // Handlers are roughly grouped together by type. For example, initialization,
 // textDocument/*, workspace/*, etc.
 
-// Log to stderr so it shows up in the *dylan-lsp::stderr* buffer.  Log to a
-// rolling temp file so we have a history and because I've seen the Emacs LSP
-// client's *dylan-lsp::stderr* buffer not be kept up to date when the process
-// restarts.
-define function initialize-logging ()
-  let file-target
-    = make(<rolling-file-log-target>,
-           pathname: merge-locators(as(<file-locator>,"lsp.log"),
-                                    temp-directory()));
-  *log* := make(<log>,
-                name: "lsp",
-                level: $debug-level,
-                targets: list($stderr-log-target, file-target));
-end function;
-
-
 // Handle the 'initialize' message.
 // Here we initialize logging/tracing and store the workspace root for later.
 // Here we return the 'static capabilities' of this server.
@@ -620,7 +604,6 @@ end function;
 define function lsp-server-top-level
     (#key debug-server? = #t, debug-opendylan? = #t) => ()
   *debug-mode* := debug-server?;
-  initialize-logging();
   if (debug-opendylan?)
     enable-od-environment-debug-logging();
   end;
