@@ -75,19 +75,29 @@ define function dump(t :: <table>) => ()
   end for;
 end;
 
-define method read-json-message(stream :: <stream>) => (json :: <object>)
+// Avoid logging the most verbose messages. Primarily the ones that contain the
+// text of an entire file.
+define constant $do-not-log-methods
+  = #["textDocument/didChange",
+      "textDocument/didOpen"];
+
+define method read-json-message (stream :: <stream>) => (json :: <object>)
   let hdrs = read-headers(stream);
   if (hdrs)
     let content-length = element(hdrs, $content-length, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
+    let json = parse-json(data);
     if (*trace-messages*)
-      log-debug("read-json-message: received %=", data);
+      let meth = element(json, "method", default: #f);
+      if (meth & member?(meth, $do-not-log-methods, test: \=))
+        log-debug("read-json-message: received %= method, contents elided", meth);
+      else
+        log-debug("read-json-message: received %=", data);
+      end;
     end;
-    parse-json(data);
-  else
-    #f
-  end;
+    json
+  end
 end method read-json-message;
 
 /* Write a message with the base protocol headers
