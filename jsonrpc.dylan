@@ -132,13 +132,10 @@ define constant $session-killed = 4;
 define class <session> (<object>)
   // Next ID to use in a request/notification.
 
-  // TODO(cgay): rename to session-id. send-request must not ever be called
-  // because it would get an error due to rebinding "id".
   slot id :: <integer> = 0;
   // Current state, see $session-preinit et al.
   slot state :: <integer> = $session-preinit;
-  // Table of functions keyed by ID. Function signature is:
-  // (session :: <session>, params :: object) => ()
+  // Table of message-handler functions keyed by ID.
   constant slot callbacks = make(<equal-table>);
   // Root path or URI
   slot root = #f;
@@ -153,7 +150,7 @@ define generic receive-raw-message
  * Send a request message.
  * Optionally, register a callback to be called with the response
  * to this message.
- * The callback is a method(session :: <session>, params :: <object>) => ()
+ * The callback is a function as defined with 'define message-handler'.
  */
 define generic send-request
     (session :: <session>, method-name :: <string>, params :: <object>,
@@ -173,7 +170,7 @@ define generic send-response
 define generic send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message, error-data)
-  => ();
+ => ();
 
 /*
  * Send an LSP notification-type message.
@@ -231,16 +228,16 @@ end method;
  */
 define method receive-message
     (session :: <session>)
- => (method-name :: <string>, id :: <object>, params :: <object>);
+ => (method-name :: <string>, id, params);
   block (return)
     let message = #f;
     while (message := receive-raw-message(session))
       let method-name = element(message, "method", default: #f);
-      let id =  element(message, "id", default: #f);
+      let id = element(message, "id", default: #f);
       let params = element(message, "params", default: #f);
       if (method-name)
         // Received a request or notification
-        return (method-name, id, params);
+        return(method-name, id, params);
       else
         // Received a response
         if (*trace-messages*)
@@ -249,7 +246,7 @@ define method receive-message
         let func = element(session.callbacks, id, default: #f);
         if (func)
           remove-key!(session.callbacks, id);
-          func(session, params);
+          func(session, id, params);
         end;
       end;
     end while;
@@ -289,7 +286,7 @@ define method send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message :: false-or(<string>),
           error-data)
-    => ()
+ => ()
   let message = make-message(id: id);
   let params = json("code", error-code,
                     "message", error-message | default-error-message(error-code));

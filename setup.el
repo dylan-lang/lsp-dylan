@@ -18,6 +18,11 @@
   "If true, the --debug-opendylan option is passed to dylan-lsp-server, which
    causes extra debug output from Open Dylan in the *dylan-lsp* buffer.")
 
+(defvar dylan-lsp-log-pathname nil
+  "Pathname of the server's log file. The default is dylan-lsp-server.log, in
+   the server's working directory, which is normally the directory of the
+   Dylan source file where the LSP client was started.")
+
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
 
 (defun dylan-lsp-start ()
@@ -27,6 +32,8 @@
       (setq server (append server '("--debug-server"))))
     (when dylan-lsp-debug-opendylan
       (setq server (append server '("--debug-opendylan"))))
+    (when dylan-lsp-log-pathname
+      (setq server (append server (list "--log" dylan-lsp-log-pathname))))
     (lsp-register-client
      (make-lsp-client :new-connection (lsp-stdio-connection server)
                       :major-modes '(dylan-mode)
