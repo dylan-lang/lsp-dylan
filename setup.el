@@ -20,20 +20,18 @@
 
 (defvar dylan-lsp-log-pathname nil
   "Pathname of the server's log file. The default is dylan-lsp-server.log, in
-   the server's working directory, which is normally the directory of the
-   Dylan source file where the LSP client was started.")
+   the server's working directory.")
 
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
 
 (defun dylan-lsp-start ()
-  (let* ((full-path dylan-lsp-exe-pathname)
-         (server (list full-path)))
-    (when dylan-lsp-debug-server
-      (setq server (append server '("--debug-server"))))
-    (when dylan-lsp-debug-opendylan
-      (setq server (append server '("--debug-opendylan"))))
-    (when dylan-lsp-log-pathname
-      (setq server (append server (list "--log" dylan-lsp-log-pathname))))
+  (let* ((server `(,dylan-lsp-exe-pathname
+                   ,@(when dylan-lsp-debug-server
+                       '("--debug-server"))
+                   ,@(when dylan-lsp-debug-opendylan
+                       '("--debug-opendylan"))
+                   ,@(when dylan-lsp-log-pathname
+                       (list "--log" dylan-lsp-log-pathname)))))
     (lsp-register-client
      (make-lsp-client :new-connection (lsp-stdio-connection server)
                       :major-modes '(dylan-mode)
