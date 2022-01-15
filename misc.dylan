@@ -102,3 +102,8 @@ define function locator-to-file-uri
   concatenate("file://", as(<string>, loc))
 end function;
 
+define function json-text (object)
+  with-output-to-string (s)
+    print-json(object, s, indent: 2)
+  end
+end function;

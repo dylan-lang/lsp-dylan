@@ -1,7 +1,8 @@
 # Low-tech Makefile to build and install lsp-dylan.
 
-# Because there's currently no way to make a static executable this gets
-# installed with the following directory structure:
+# Because there's currently no way to make a static executable (until the
+# release following Open Dylan 2020.1) this gets installed with the following
+# directory structure:
 #
 #   ${DYLAN}/install/lsp-dylan/bin/dylan-lsp-server   # executable
 #   ${DYLAN}/install/lsp-dylan/lib/*                  # shared libraries
@@ -37,7 +38,7 @@ test: build
 	      && _build/bin/lsp-dylan-test-suite
 
 clean:
-	rm -rf _build
+	rm -rf ../_build
 
 distclean: clean
 	rm -rf $(install_dir)

@@ -17,11 +17,7 @@ define handler initialize
   // The very first received message is "initialize" (I think), and it seems
   // that for some reason it doesn't get logged, so log params here. The params
   // for this method are copious, so we log them with pretty printing.
-  log-debug("initialize(%=, %=, %s)",
-            session, id,
-            with-output-to-string (s)
-              print-json(params, s, indent: 2)
-            end);
+  log-debug("initialize(%=, %=, %s)", session, id, json-text(params));
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
     "off" =>
@@ -37,8 +33,6 @@ define handler initialize
       log-error("initialize: trace must be 'off', 'messages' or 'verbose', not %=",
                 trace);
   end select;
-  log-debug("initialize: debug: %s, messages: %s, verbose: %s",
-            *debug-mode*, *trace-messages*, *trace-verbose*);
 
   // Save the workspace root (if provided) for later.
   // rootUri takes precedence over rootPath if both are provided.
@@ -47,7 +41,7 @@ define handler initialize
   let root-path = element(params, "rootPath", default: #f);
   session.root := find-workspace-root(root-uri, root-path);
   if (session.root)
-    log-info("Found Dylan workspace root: %s", session.root);
+    log-info("Dylan workspace root: %s", session.root);
     working-directory() := session.root;
   end;
   log-info("Dylan LSP server working directory: %s", working-directory());
@@ -74,6 +68,18 @@ end handler;
  */
 define handler initialized
     (session :: <session>, id, params)
+  for (var in list("OPEN_DYLAN_RELEASE",
+                   "OPEN_DYLAN_RELEASE_BUILD",
+                   "OPEN_DYLAN_RELEASE_INSTALL",
+                   "OPEN_DYLAN_RELEASE_REGISTRIES",
+                   "OPEN_DYLAN_USER_BUILD",
+                   "OPEN_DYLAN_USER_INSTALL",
+                   "OPEN_DYLAN_USER_PROJECTS",
+                   "OPEN_DYLAN_USER_REGISTRIES",
+                   "OPEN_DYLAN_USER_ROOT",
+                   "PATH"))
+    log-debug("initialized: %s=%s", var, environment-variable(var));
+  end;
   /* Commented out because we don't need to do this (yet)
   let hregistration = json("id", "dylan-reg-hover",
                            "method", "textDocument/hover");
@@ -89,83 +95,20 @@ define handler initialized
   show-info(session, "Dylan LSP server started.");
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
-
-  // Test code
-  for (var in list("OPEN_DYLAN_RELEASE",
-                   "OPEN_DYLAN_RELEASE_BUILD",
-                   "OPEN_DYLAN_RELEASE_INSTALL",
-                   "OPEN_DYLAN_RELEASE_REGISTRIES",
-                   "OPEN_DYLAN_USER_BUILD",
-                   "OPEN_DYLAN_USER_INSTALL",
-                   "OPEN_DYLAN_USER_PROJECTS",
-                   "OPEN_DYLAN_USER_REGISTRIES",
-                   "OPEN_DYLAN_USER_ROOT",
-                   "PATH"))
-    log-debug("initialized: %s=%s", var, environment-variable(var));
-  end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *server* := start-compiler(in-stream, out-stream);
-  test-open-project(session);
 end handler;
-
-define function test-open-project (session) => ()
-  let project-name = find-project-name();
-  log-debug("test-open-project: Found project name %=", project-name);
-  *project* := open-project(*server*, project-name);
-  log-debug("test-open-project: Project opened");
-
-  // Let's see if we can find a module.
-
-  // TODO(cgay): file-module is returning #f because (I believe)
-  // project-compiler-database(*project*) returns #f and hence file-module
-  // punts. Not sure who's responsible for opening the db and setting that slot
-  // or why it has worked at all in the past.
-  let (m, l) = file-module(*project*, "library.dylan");
-  log-debug("test-open-project: m = %=, l = %=", m, l);
-  log-debug("test-open-project: Try Module: %=, Library: %=",
-            m & environment-object-primitive-name(*project*, m),
-            l & environment-object-primitive-name(*project*, l));
-
-  log-debug("test-open-project: project-library = %=", project-library(*project*));
-  log-debug("test-open-project: project db = %=", project-compiler-database(*project*));
-
-  *module* := m;
-  if (*project*)
-    let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = open-project-compiler-database(*project*, warning-callback: warn);
-    log-debug("test-open-project: db = %=", db);
-    for (s in project-sources(*project*))
-      let rl = source-record-location(s);
-      log-debug("test-open-project: Source: %=, a %= in %=",
-                s,
-                object-class(s),
-                as(<string>, rl));
-    end;
-    log-debug("test-open-project: listing project file libraries:");
-    do-project-file-libraries(method (l, r)
-                                log-debug("test-open-project: Lib: %= Rec: %=", l, r);
-                              end,
-                              *project*,
-                              as(<file-locator>, "library.dylan"));
-  else
-    log-debug("test-open-project: project did't open");
-  end if;
-  log-debug("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
-  log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
-end function;
 
 define handler workspace/workspaceFolders
     (session :: <session>, id, params)
   // TODO: handle multi-folder workspaces.
-  log-debug("Workspace folders were received: %=", params);
 end handler;
 
 define handler workspace/symbol
     (session :: <session>, id, params)
   // TODO this is only a dummy
   let query = params["query"];
-  log-debug("Query: %s", query);
   let range = make-range(make-position(0, 0), make-position(0, 5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
@@ -179,15 +122,11 @@ define handler workspace/didChangeConfiguration
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
-  log-debug("Did change configuration");
-  log-debug("Settings: %s", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
   let dylan-settings = settings["dylan"];
   let project-name = element(dylan-settings, "project", default: #f);
   *project-name* := (project-name ~= "") & project-name;
-  //show-info(session, "The config was changed");
-  test-open-project(session);
 end handler;
 
 // Format symbol description into a hover message.
@@ -238,28 +177,60 @@ end handler;
 
 define handler textDocument/didOpen
     (session :: <session>, id, params)
-  // TODO this is only a dummy
-  let textDocument = params["textDocument"];
-  let uri = textDocument["uri"];
-  let languageId = textDocument["languageId"];
-  let version = textDocument["version"];
-  let text = textDocument["text"];
-  log-debug("textDocument/didOpen: File %s of type %s, version %s, length %d",
-            uri, languageId, version, size(text));
-  // Only bother about dylan files for now.
-  if (languageId = "dylan")
-    register-file(uri, text);
-  end if;
-  if (*project*)
+  block (return)
+    let document = params["textDocument"];
+    let uri = document["uri"];
+    let language-id = document["languageId"];
+    let text = document["text"];
+
+    if (language-id = "dylan")
+      register-file(uri, text);
+    else
+      log-info("textDocument/didOpen: ignoring non-Dylan file %s", uri);
+      return();
+    end if;
+
+    if (*project*)
+      // For now assume only one open project at a time.
+      log-info("Reusing open project %s", *project*);
+      return();
+    end;
+
     let file = file-uri-to-locator(uri);
-    let (m, l) = file-module(*project*, file);
-    log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
-              as(<string>, file),
-              if (m) environment-object-primitive-name(*project*, m) end,
-              if (l) environment-object-primitive-name(*project*, l) end);
-  else
-    log-debug("textDocument/didOpen: no project found");
-  end if;
+    let library-name = find-library-name(file);
+    if (~library-name)
+      show-error("No library found for %s", uri);
+      return();
+    end;
+
+    log-info("textDocument/didOpen: found library name %=", library-name);
+    *project* := open-project(*server*, library-name);
+    // TODO(cgay): file-module is returning #f because (I believe)
+    // project-compiler-database(*project*) returns #f and hence file-module
+    // punts. Not sure who's responsible for opening the db and setting that
+    // slot or why it has worked at all in the past.
+    let (module, library) = file-module(*project*, file);
+    log-debug("textDocument/didOpen: file: %s module: %=, library: %=",
+              file,
+              module & environment-object-primitive-name(*project*, module),
+              library & environment-object-primitive-name(*project*, library));
+    *module* := module;
+
+    // Debugging ...
+    let warn = curry(log-warning, "open-project-compiler-database: %=");
+    let db = open-project-compiler-database(*project*, warning-callback: warn);
+    log-debug("textDocument/didOpen: db = %=", db);
+    for (source in project-sources(*project*))
+      let rloc = source-record-location(source);
+      log-debug("textDocument/didOpen: source = %s", rloc);
+    end;
+    do-project-file-libraries(method (lib, rec)
+                                log-debug("textDocument/didOpen: lib = %s rec = %s",
+                                          lib, rec);
+                              end,
+                              *project*,
+                              as(<file-locator>, "library.dylan"));
+  end block;
 end handler;
 
 // A document was saved. For Emacs, this is called when M-x lsp is executed on
@@ -268,20 +239,16 @@ end handler;
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
 define handler textDocument/didSave
     (session :: <session>, id, params)
-  let textDocument = params["textDocument"];
-  let uri = textDocument["uri"];
-  // TODO(cgay): obviously we should be passing uri to find-project-name here.
-  let project = find-project-name();
-  log-debug("textDocument/didSave: File %s, project %=", uri, project);
+  let document = params["textDocument"];
+  let uri = document["uri"];
+  let project = find-library-name(file-uri-to-locator(uri));
   if (project)
     let project-object = find-project(project);
-    log-debug("textDocument/didSave: project = %=", project-object);
     if (project-object)
       let warnings = make(<stretchy-vector>);
       build-project(project-object,
                     link?: #f,
                     warning-callback: curry(add!, warnings));
-      log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warning%s",
                 if (empty?(warnings)) "no" else warnings.size end,
                 if (warnings.size == 1) "" else "s" end);
@@ -290,8 +257,7 @@ define handler textDocument/didSave
       show-error("Project %s not found.", project);
     end;
   else
-    log-debug("handle-textDocument/didSave: project not found for %=", uri);
-    show-error("Project %s not found.", project);
+    show-error("Project not found for %s.", uri);
   end;
 end handler;
 
@@ -392,7 +358,6 @@ define function apply-change
   if (range)
     show-error(session, "didChange doesn't support ranges yet");
   else
-    log-debug("document replaced: %s", document.document-uri);
     show-info(session, "Document content replaced");
     document-lines(document) := split-lines(text);
   end;
@@ -503,71 +468,93 @@ end function;
 // the line and column
 define function lookup-symbol
     (session, symbol :: <string>, #key module) => (doc, line, column)
-  let loc = symbol-location(symbol, module: module);
-  if (loc)
-    let source-record = loc.source-location-source-record;
-    let absolute-path = source-record.source-record-location;
-    let (name, line) = source-line-location(source-record,
-                                          loc.source-location-start-line);
-    let column = loc.source-location-start-column;
-    values(absolute-path, line - 1, column)
+  let sloc = symbol-location(symbol, module: module);
+  if (sloc)
+    let sr = sloc.source-location-source-record;
+    let locator = sr.source-record-location;
+    let (name, line) = source-line-location(sr, sloc.source-location-start-line);
+    let column = sloc.source-location-start-column;
+    log-debug("sloc = %s\nsr = %s\nlocator = %s\nname = %s", sloc, sr, locator, name);
+
+    /* M-. on source-line-location, above, yields this...what's up with locator
+       being in _build/databases? [later] It seems to have been due to not having
+       OPEN_DYLAN_USER_REGISTRIES set to contain $OD/sources/registry. My guess
+       is that it therefore opened a precompiled database-only project and that
+       gets the source-record-location wrong. Might be worth diving into.
+
+       log: Invoking message handler "textDocument/definition" with id 3 and params {<string-table> 9}
+       log: source-line-location -> module is {class <module-object>}lsp-dylan-impl
+       log: sloc = {<compiler-range-source-location> {flat file "source-records"} (66, 0) - (67, 61) 10}
+
+       sr = {flat file "source-records"}
+       locator = /home/cgay/dylan/workspaces/lsp/_build/databases/source-records.dylan
+       name = source-records.dylan
+      */
+    values(locator, line - 1, column)
   else
     log-debug("Looking up %s, not found", symbol);
     #f
   end
 end function;
 
-// Find the project name to open.
-// Either it is set in the per-directory config (passed in from the client)
-// or we'll guess it is the only lid file in the workspace root.
-// If there is more than one lid file, that's an error, don't return
-// any project.
-// Returns: the name of a project
-//
-// TODO(cgay): Really we need to search the LID files to find the file in the
-//   textDocument/didOpen message so we can figure out which library's project
-//   to open.
-// TODO(cgay): accept a locator argument so we know where to start, rather than
-//   using working-directory(). Also better for testing.
-define function find-project-name
-    () => (name :: false-or(<string>))
-  if (*project-name*)
-    // We've set it explicitly
-    log-debug("Project name explicitly:%s", *project-name*);
-    *project-name*
-  elseif (ws/find-workspace-file(working-directory()))
-    // There's a dylan-tool workspace.
-    let workspace = ws/load-workspace(working-directory());
-    let library-name = workspace & ws/workspace-default-library-name(workspace);
-    if (library-name)
-      log-debug("found dylan-tool workspace default library name %=", library-name);
-      library-name
-    else
-      log-debug("dylan-tool workspace has no default library configured.");
-      #f
+// Find the name of a project (i.e., library) to open. For now, this requires a
+// workspace.json file with a "default-library" setting.
+define function find-library-name
+    (file :: <file-locator>) => (name :: false-or(<string>))
+  block (return)
+    if (*project-name*)
+      // It was explicitly set.
+      log-debug("Project name set explicitly: %s", *project-name*);
+      return(*project-name*);
     end;
-  else
-    log-debug("no workspace file found starting in %s", working-directory());
-    // Guess based on there being one .lid file in the workspace root
-    block(return)
-      local method return-lid (dir, name, type)
-              if (type = #"file")
-                let file = as(<file-locator>, name);
-                if (locator-extension(file) = "lid")
-                  // TODO(cgay): This strips the extension so that the project will be
-                  // opened via the registry because when it's opened via the .lid file
-                  // directly the database doesn't get opened. Note that when opened by
-                  // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
-                  // via the registry it opens a <dfmc-lid-project-object>. Go figure.
-                  return(locator-base(file));
-                end if;
-              end if;
-            end method;
-      do-directory(return-lid, working-directory());
-      log-debug("find-project-name found no LID files in %s", working-directory());
-      #f
-    end block
-  end if
+    let dir = locator-directory(file);
+    let workspace = ws/load-workspace(dir);
+    let name = workspace & ws/workspace-default-library-name(workspace);
+    if (name)
+      log-debug("found dylan-tool workspace default library name %=", name);
+      return(name);
+    end;
+    log-debug("dylan-tool workspace has no default library configured.");
+
+    // When/if we decide to implement find-root-libraries in the "workspaces"
+    // library (not that hard), uncomment this. For now we require (above) that
+    // a "default-library" be configured in workspace.json.
+/*
+    let root = if (workspace)
+                 ws/workspace-directory(workspace)
+               else
+                 locator-directory(find-registry-directory(dir) | file)
+               end;
+    let names = #[]; // TODO(maybe): ws/find-root-libraries(file)
+    select (size(names))
+      0 =>
+        error("No project found for %s. Make sure you're in a Dylan workspace"
+                " or there is a 'registry' directory next to or above that file.",
+              file);
+      1 =>
+        names[0];
+      otherwise =>
+        local method test-library? (name)
+                ends-with?(name, "-test-suite")
+                  | ends-with?(name, "-tests")
+                  | ends-with?(name, "-test")
+              end;
+        let test-libraries = choose(test-library?, names);
+        select (test-libraries.size)
+          0 =>
+            log-warning("Multiple libraries found for %s, using the first one: %s",
+                        file, join(names, ", "));
+            names[0];
+          1 =>
+            test-libraries[0];
+          otherwise =>
+            log-warning("Multiple test libraries found for %s, using the first one: %s",
+                        file, join(test-libraries, ", "));
+            test-libraries[0];
+        end select
+    end select
+*/
+  end block
 end function;
 
 define handler exit
