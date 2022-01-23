@@ -1,21 +1,21 @@
 [submodule "vscode-dylan"]
 	path = vscode-dylan
-	url = git@github.com:pedro-w/vscode-dylan.git
+	url = https://github.com/dylan-lang/vscode-dylan.git
 [submodule "ext/json"]
 	path = ext/json
-	url = git@github.com:dylan-lang/json
+	url = https://github.com/dylan-lang/json
 [submodule "ext/workspaces"]
 	path = ext/workspaces
-	url = git@github.com:cgay/workspaces
+	url = https://github.com/dylan-lang/workspaces
 [submodule "ext/uncommon-dylan"]
 	path = ext/uncommon-dylan
-	url = git@github.com:cgay/uncommon-dylan
+	url = https://github.com/cgay/uncommon-dylan
 [submodule "ext/pacman"]
 	path = ext/pacman
-	url = git@github.com:cgay/pacman
+	url = https://github.com/dylan-lang/pacman
 [submodule "ext/command-line-parser"]
 	path = ext/command-line-parser
-	url = git@github.com:dylan-lang/command-line-parser
+	url = https://github.com/dylan-lang/command-line-parser
 [submodule "ext/logging"]
 	path = ext/logging
-	url = git@github.com:dylan-lang/logging
+	url = https://github.com/dylan-lang/logging
