@@ -53,7 +53,7 @@ define handler initialize
   log-info("Dylan LSP server working directory: %s", working-directory());
 
   // Return the capabilities of this server
-  let capabilities = json("hoverProvider", #f,
+  let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
@@ -196,21 +196,25 @@ end handler;
 // Returns: contents, (optional) range
 define handler textDocument/hover
     (session :: <session>, id, params)
-  // TODO this is only a dummy
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
   let (line, column) = decode-position(position);
-  let doc = $documents[uri];
-  let symbol = symbol-at-position(doc, line, column);
-  if (symbol)
-    let txt = format-to-string("textDocument/hover %s (%d/%d)", symbol, line + 1, column + 1);
-    let hover = json("contents", make-markup(txt, markdown?: #f));
-    send-response(session, id, hover);
+  let doc = element($documents, uri, default: #f);
+  if (~doc)
+    log-debug("textDocument/hover: document %= not found", uri);
+    show-error(session, format-to-string("Document not found: %s", uri));
   else
-    // No symbol found (probably out of range)
-    send-response(session, id, #f);
-  end;
+    let module = doc.ensure-document-module;
+    let symbol = symbol-at-position(doc, line, column);
+    let hover = if (symbol) 
+                  let txt = describe-symbol(symbol, module: module);
+                  if (txt)
+                    json("contents", make-markup(txt, markdown?: #f));
+                  end;
+                end;
+    send-response(session, id, hover);
+  end if;
 end handler;
 
 define handler textDocument/didOpen
@@ -389,16 +393,11 @@ define handler textDocument/definition
     log-debug("textDocument/definition: document not found: %=", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
   else
-    unless (doc.document-module)
-      let file = file-uri-to-locator(doc.document-uri);
-      let (mod, lib) = file-module(*project*, file);
-      log-debug("textDocument/definition: module=%s, library=%s", mod, lib);
-      doc.document-module := mod;
-    end;
+    let module = doc.ensure-document-module;
     let symbol = symbol-at-position(doc, line, character);
     if (symbol)
       let (target, line, char)
-        = lookup-symbol(session, symbol, module: doc.document-module);
+        = lookup-symbol(session, symbol, module: module);
       if (target)
         log-debug("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
                   symbol, target, line, char);
@@ -428,6 +427,16 @@ define class <open-document> (<object>)
   slot document-lines :: <sequence>,
     required-init-keyword: lines:;
 end class;
+
+define method ensure-document-module
+    (document :: <open-document>) => (module :: <module-object>)
+  document.document-module |
+    begin
+      let file = file-uri-to-locator(document.document-uri);
+      let (mod, lib) = file-module(*project*, file);
+      document.document-module := mod;
+    end;
+end;
 
 define function register-file (uri, contents)
   log-debug("register-file(%=)", uri);
@@ -642,8 +651,7 @@ define function enable-od-environment-debug-logging ()
   //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
 end function;
 
-ignore(*library*, run-compiler, describe-symbol, list-all-package-names,
-       document-lines-setter,
+ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
        one-off-debug, dump, show-warning, show-log, show-error);
 
 

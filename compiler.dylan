@@ -42,10 +42,20 @@ define function open-project
   project
 end function;
 
-
-define function describe-symbol (symbol-name)
-  let env = get-environment-object(symbol-name, module: *module*);
-  environment-object-description(*project*, env, *module*)
+// Get a symbol's description from the compiler database.
+// This is used to implement the 'hover' function.
+//
+// Parameters:
+//  symbol-name - a <string>
+//  module - a <module-object> or #f
+// Returns:
+//  description - a <string> or #f
+define function describe-symbol
+    (symbol-name :: <string>, #key module) => (description :: false-or(<string>))
+  let env = get-environment-object(symbol-name, module: module);
+  if (env) 
+    environment-object-description(*project*, env, module)
+  end if;
 end;
 
 define function symbol-location
