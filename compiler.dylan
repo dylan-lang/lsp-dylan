@@ -53,7 +53,7 @@ end function;
 define function describe-symbol
     (symbol-name :: <string>, #key module) => (description :: false-or(<string>))
   let env = get-environment-object(symbol-name, module: module);
-  if (env) 
+  if (env)
     environment-object-description(*project*, env, module)
   end if;
 end;

@@ -190,6 +190,24 @@ define handler workspace/didChangeConfiguration
   test-open-project(session);
 end handler;
 
+// Format symbol description into a hover message.
+// The description comes from the compiler database as a string with
+// four lines - location, name, params, return - this is too much
+// to fit in, so just show the last three on one line.
+// If the input is #f or not in four line format, return #f
+define function format-hover-message
+    (txt :: false-or(<string>)) => (hover :: false-or(<string>))
+  if (txt)
+    let lines = split-lines(txt);
+    if (size(lines) = 4)
+      let fname = strip(lines[1]);
+      let params = strip(lines[2]);
+      let returns = strip(lines[3]);
+      format-to-string("%s %s %s", fname, params, returns)
+    end if;
+  end if;
+end function;
+
 // Show information about a symbol when we hover the cursor over it
 // See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
 // Parameters: textDocument, position, (optional) workDoneToken
@@ -207,10 +225,11 @@ define handler textDocument/hover
   else
     let module = doc.ensure-document-module;
     let symbol = symbol-at-position(doc, line, column);
-    let hover = if (symbol) 
+    let hover = if (symbol)
                   let txt = describe-symbol(symbol, module: module);
-                  if (txt)
-                    json("contents", make-markup(txt, markdown?: #f));
+                  let msg = format-hover-message(txt);
+                  if (msg)
+                    json("contents", make-markup(msg, markdown?: #f));
                   end;
                 end;
     send-response(session, id, hover);
