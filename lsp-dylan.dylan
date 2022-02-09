@@ -198,12 +198,12 @@ end handler;
 define function format-hover-message
     (txt :: false-or(<string>)) => (hover :: false-or(<string>))
   if (txt)
-    let lines = split-lines(txt);
-    if (size(lines) = 4)
-      let fname = strip(lines[1]);
-      let params = strip(lines[2]);
-      let returns = strip(lines[3]);
-      format-to-string("%s %s %s", fname, params, returns)
+    let (_, fname, params, returns) = apply(values, split-lines(txt));
+    if (returns)
+      format-to-string("%s %s %s",
+                       strip(fname),
+                       strip(params),
+                       strip(returns))
     end if;
   end if;
 end function;
