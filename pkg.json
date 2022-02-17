@@ -1,11 +1,13 @@
 {
     "name": "lsp-dylan",
+    "version": "0.1.0",
+    "description": "Language Server Protocol (LSP) server",
+    "url": "https://github.com/dylan-lang/lsp-dylan",
     "deps": [
         "command-line-parser@3.1",
         "json@1.0",
         "logging@2.1",
         "vscode-dylan@0.1",
-        "workspaces@0.3"
-    ],
-    "location": "https://github.com/dylan-lang/lsp-dylan"
+        "workspaces@0.4"
+    ]
 }
