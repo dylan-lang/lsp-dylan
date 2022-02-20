@@ -5,61 +5,72 @@ Protocol](https://microsoft.github.io/language-server-protocol/) for
 Dylan.
 
 
-## Current Status
-
-As of 2022-01-04, the only function fully implemented is "jump to definition"
-and (at least in Emacs) when you jump to another `.dylan` file, that file does
-not in automatically have LSP enabled so you must use `M-x lsp` again.
+## Current Status as of Feb 2022
 
 We are currently using version [3.15 of the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/).
 
+These features are implemented:
 
-## Opening Projects
+*  Jump to definition (`textDocument/definition`)
+*  Hover text (`textDocument/hover`)
+*  Compiler diagnostics (i.e., warnings) on saving a file.
 
-The LSP server needs to be able to open a project (essentially a Dylan library)
-associated with the file you're editing when you turn on LSP in your editor. It
-makes two attempts, in the following order:
+In Emacs, when you open a new `.dylan` file (whether manually or by `M-.`) that
+file does not in automatically have LSP enabled so you must use `M-x lsp`
+again.
 
-1. Search up in the directory structure until it finds a `workspace.json` file,
-   which indicates a [dylan-tool](https://github.com/dylan-lang/dylan-tool)
-   workspace.  In this case it looks for the "default-library" setting in the
-   workspace file and opens that library.  If there is no default library set
-   and there is only one "active" library, it uses that. Otherwise it fails.
+When using Emacs in a terminal, compiler warnings are highlighted in red or
+yellow and may be navigated with `flymake` commands like
+`flymake-goto-next-error`. With Emacs GUI the fringe and the mode-line are
+clickable.
 
-2. Search up in the directory structure for a `registry` directory and open the
-   library associated with the first `*.lid` file it finds there. (Note that it
-   currently removes the `.lid` suffix and assumes that a library by the same
-   name as the basename of the file can be opened via the registry. This should
-   eventually be fixed.)
+
+## How Projects are Opened
+
+The LSP server needs to be able to open a project (a Dylan library) associated
+with the file you're editing when you turn on LSP in your editor. It does this
+by searching up in the directory structure until it finds a `workspace.json`
+file, which indicates a [dylan-tool](https://github.com/dylan-lang/dylan-tool)
+workspace.  It looks for the "default-library" setting in that file and opens
+that library.  Example `workspace.json` file:
+
+```json
+{
+    "default-library": "http"
+}
+```
+
+See the [dylan-tool documentation](https://github.com/dylan-lang/dylan-tool)
+for how to create workspaces.
 
 
 ## Emacs Usage
-
-Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
 1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
 2. Set environment variables.
 
-   a. Currently the LSP server only opens projects via the Dylan registry so
-      it's important to either start emacs in the directory containing your
-      "registry" directory or set `OPEN_DYLAN_USER_REGISTRIES` to contain that
-      registry directory.
+   a. The LSP server opens projects via the Dylan registry. The registry
+      directory is located in the Dylan workspace root, and `lsp-dylan`
+      automatically does compilation in that directory so that Open Dylan will
+      find the registry.
 
-      If you are developing the lsp-dylan code itself and also modifying Open
-      Dylan at the same time, you may want to include
-      `.../opendylan/sources/registry` in the list as well. Otherwise, when you
-      use `M-.` etc to jump to definitions for used libraries, files in the
+      If you make changes to project dependencies make sure the registry is
+      up-to-date by running `dylan update` inside the workspace.
+
+      If you are developing `lsp-dylan` itself you will probably want to add
+      the Open Dylan registry to `OPEN_DYLAN_USER_REGISTRIES`.  Otherwise, when
+      you use `M-.` etc to jump to definitions for used libraries, files in the
       Open Dylan install directory (which is not under source control) will be
-      opened. For example:
+      opened. Example:
 
-        export OPEN_DYLAN_USER_REGISTRIES=/path/to/lsp-dylan/registry:/path/to/opendylan/sources/registry
+        export OPEN_DYLAN_USER_REGISTRIES=/path/to/opendylan/sources/registry
 
    b. Point `OPEN_DYLAN_RELEASE_INSTALL` at the Open Dylan installation
-      directory. This is necessary so that it can find the Jam build scripts,
-      and core libraries. For example:
+      directory. This is necessary so that the compiler can find the Jam build
+      scripts. For example:
 
-        export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2021.1
+        export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2020.1
 
 3. Start emacs and make sure that `setup.el` is loaded. For example:
 
@@ -70,8 +81,9 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 4. Open a Dylan source file and type `M-x lsp` to start the client. The client
    starts the LSP server (the `dylan-lsp-server` executable) and connects to
    it. You must either `(setq dylan-lsp-exe-pathname
-   "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
-   that the `dylan-lsp-server` binary is on your `PATH`.
+   "/path/to/dylan-lsp-server")` in your Emacs init file or make sure that the
+   `dylan-lsp-server` binary is on your `PATH`.
+
 
 ## Visual Studio Code Usage
 
@@ -103,7 +115,7 @@ These instructions were tested on Linux and macOS.
 * [Intro to LSP from
   Microsoft](https://docs.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol)
   Besides being a quick introduction, this has links to some other tools that
-  would help in developing VS Code integration for Dylan.
+  may help in developing VS Code integration for Dylan.
 
 * [LSP v3.15
   Specification](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/)
