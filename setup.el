@@ -73,13 +73,18 @@
 					    env
 					    (dylan-lsp--infer-install-dir))))))
 
+(defun dylan-lsp--initialized (workspace)
+  "Event handler for when the connection is initialized")
+
 (defun dylan-lsp--start ()
   "Do whatever we need to set up and register with emacs-lsp"
   (lsp-register-client
    (make-lsp-client :new-connection (lsp-stdio-connection 'dylan-lsp--command)
 		    :environment-fn 'dylan-lsp--environment
 		    :major-modes '(dylan-mode)
+		    :initialized-fn 'dylan-lsp--initialized
 		    :server-id 'dylan-lsp)))
 
+(lsp-consistency-check dylan-lsp)
 (dylan-lsp--start)
 
