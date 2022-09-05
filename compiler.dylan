@@ -42,6 +42,13 @@ define function open-project
   project
 end function;
 
+// Given a definition, make a list of all its definitions
+// For generic functions it is the GF and all its specializing methods
+// For anything else it's the thing itself
+// Returns a list of <definition-object>s
+define generic all-definitions
+  (server :: <server>, object :: <definition-object>) => (definitions :: <list>);
+
 // Get a symbol's description from the compiler database.
 // This is used to implement the 'hover' function.
 //
@@ -58,13 +65,15 @@ define function describe-symbol
   end if;
 end;
 
-define function symbol-location
+define function symbol-locations
     (symbol-name :: <string>, #key module)
-  let env = get-environment-object(symbol-name, module: module);
-  if (env)
-    environment-object-source-location(*project*, env)
+  let primary = get-environment-object(symbol-name, module: module);
+  if (primary)
+    let all = all-definitions(*project*, primary);
+    map(method(definition) environment-object-source-location(*project*, definition) end, all);
   else
     log-debug("No environment object for %s in module %s", symbol-name, module);
+    list();
   end
 end function;
 
@@ -151,10 +160,28 @@ define method n (x == #f)
 end;
 
 define function get-environment-object
-    (symbol-name :: <string>, #key module) => (o :: false-or(<environment-object>))
+    (symbol-name :: <string>, #key module) => (object :: false-or(<environment-object>))
   let library = project-library(*project*);
   log-debug("%s -> module is %s", symbol-name, n(module));
   find-environment-object(*project*, symbol-name,
                           library: library,
                           module: module);
 end function;
+
+// For most definition objects it's just a list with the thing itself
+define method all-definitions
+    (server :: <server>, object :: <definition-object>) => (definitions :: <list>)
+    list(object);
+end;
+
+// For GF it's the GF at the head of the list and all the specialising
+// methods in the tail.
+define method all-definitions
+    (server :: <server>, gf :: <generic-function-object>) => (definitions :: <list>)
+  let definitions = list();
+  local method add(meth)
+          definitions := pair(meth, definitions);
+        end;
+  do-generic-function-methods(add, server, gf, client: #f);
+  pair(gf, definitions);
+end;
