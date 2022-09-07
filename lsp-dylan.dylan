@@ -55,6 +55,7 @@ define handler initialize
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
+                          "declarationProvider", #t,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
   let response-params = json("capabilities", capabilities);
@@ -397,6 +398,46 @@ define function apply-change
     document-lines(document) := split-lines(text);
   end;
 end function;
+
+// Jump to Declaration
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_declaration
+// In 'Dylan world' this means jump to the generic function if there is one
+define handler textDocument/declaration
+  (session :: <session>, id, params)
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let position = params["position"];
+  let (line, character) = decode-position(position);
+  let doc = element($documents, uri, default: #f);
+  let location = $null;
+  if (~doc)
+    log-debug("textDocument/declaration: document not found: %=", uri);
+    show-error(session, format-to-string("Document not found: %s", uri));
+  else
+    let module = doc.ensure-document-module;
+    let symbol = symbol-at-position(doc, line, character);
+    if (symbol)
+      let lookups = lookup-symbol(session, symbol, module: module);
+      if (~empty?(lookups))
+        let lookup = first(lookups);
+        let target = first(lookup);
+        let line = second(lookup);
+        let char = third(lookup);
+        log-debug("textDocument/declaration: Lookup %s and got target=%=, line=%=, char=%=",
+                  symbol, target, line, char);
+        let uri :: <string> = locator-to-file-uri(target);
+        location := make-empty-location(uri, line, char);
+      else
+        log-debug("textDocument/declaration: symbol %=, not found", symbol);
+      end;
+    else
+      log-debug("textDocument/declaration: symbol is #f, nothing to lookup", symbol);
+      show-info(session, "No symbol found at current position.");
+    end;
+  end;
+  send-response(session, id, location);
+end handler;
+  
 
 // Jump to definition.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
