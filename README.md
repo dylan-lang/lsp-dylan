@@ -7,8 +7,18 @@ Dylan.
 
 ## Current Status
 
-As of 2022-01-04, the only function fully implemented is "jump to definition"
-and (at least in Emacs) when you jump to another `.dylan` file, that file does
+As of 2022-09-07, the server implements
+
+* Jump to declaration
+* Jump to definition
+* Hover
+
+When applied to a symbol which is bound to a generic function, "jump to 
+definition" will show a clickable list containing the generic function and 
+its specific methods, whereas "jump to declaration" will jump straight to 
+the generic function.
+
+In Emacs, when you jump to another `.dylan` file, that file does
 not in automatically have LSP enabled so you must use `M-x lsp` again.
 
 We are currently using version [3.15 of the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/).
