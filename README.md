@@ -37,7 +37,8 @@ makes two attempts, in the following order:
 
 Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
-1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
+1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode) and Dylan mode. 
+   Both these are available from MELPA.
 
 2. Set environment variables.
 
@@ -55,11 +56,17 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
         export OPEN_DYLAN_USER_REGISTRIES=/path/to/lsp-dylan/registry:/path/to/opendylan/sources/registry
 
-   b. Point `OPEN_DYLAN_RELEASE_INSTALL` at the Open Dylan installation
-      directory. This is necessary so that it can find the Jam build scripts,
-      and core libraries. For example:
+   b. The server needs the Open Dylan installation directory, so it
+      can find the Jam build scripts and core libraries. If
+      `dylan-compiler` is on the path, the emacs client will find the
+      installation directory relative to that. To override it, either
+      set the emacs variable `dylan-lsp-open-dylan-release` (using the
+      customization interface) or set the environment variable
+      `OPEN_DYLAN_RELEASE_INSTALL`. For example:
 
-        export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2021.1
+          export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2021.1
+
+      The emacs variable takes priority if both are set.
 
 3. Start emacs and make sure that `setup.el` is loaded. For example:
 
@@ -72,6 +79,16 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
    it. You must either `(setq dylan-lsp-exe-pathname
    "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
    that the `dylan-lsp-server` binary is on your `PATH`.
+   
+The emacs client has a customization group "Dylan Lsp" which is a member of the "Programming 
+/ Tools" group, and has the following variables:
+
+* `dylan-lsp-exe-pathname`
+* `dylan-lsp-debug-server`
+* `dylan-lsp-debug-opendylan`
+* `dylan-lsp-log-pathname`
+
+These are documented in the customization interface within emacs.
 
 ## Visual Studio Code Usage
 
