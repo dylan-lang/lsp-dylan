@@ -17,13 +17,15 @@
    Must be an absolute pathname or the binary must be on your PATH."
   :type 'string)
 
-(defcustom dylan-lsp-debug-server t
+(defcustom dylan-lsp-debug-server-flag t
   "Display extra debugging info from the server.
    If true, the --debug-server option is passed to dylan-lsp-server, which
-   causes extra debug output from dylan-lsp-server in the *dylan-lsp* buffer."
+   causes extra debug output from dylan-lsp-server in the *dylan-lsp* buffer.
+   This will also cause the server to crash with a backtrace, if a message
+   handler encounters an error."
   :type 'boolean)
 
-(defcustom dylan-lsp-debug-opendylan t
+(defcustom dylan-lsp-debug-opendylan-flag t
   "Display extra debugging info from the compiler.
    If true, the --debug-opendylan option is passed to dylan-lsp-server, which
    causes extra debug output from Open Dylan in the *dylan-lsp* buffer."
@@ -48,13 +50,15 @@
   "Generate the command line to start the LSP server"
   (append
    (list dylan-lsp-exe-pathname)
-   (when dylan-lsp-debug-server '("--debug-server"))
-   (when dylan-lsp-debug-opendylan '("--debug-opendylan"))
+   (when dylan-lsp-debug-server-flag '("--debug-server"))
+   (when dylan-lsp-debug-opendylan-flag '("--debug-opendylan"))
    (when dylan-lsp-log-pathname (list "--log" dylan-lsp-log-pathname))))
 
 (defun dylan-lsp--infer-install-dir ()
   "Find the install dir relative to `dylan-compiler' on the path"
-  (let* ((compiler (executable-find "dylan-compiler"))
+  (let* ((compiler (or
+		    (executable-find "dylan-compiler")
+		    (error "Cannot find the Dylan install directory; dylan-compiler must be on the PATH")))
 	 (bindir (file-name-directory compiler))
 	 (bindirname (directory-file-name bindir))
 	 (installdir (file-name-directory bindirname)))

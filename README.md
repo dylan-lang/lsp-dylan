@@ -58,7 +58,7 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
    b. The server needs the Open Dylan installation directory, so it
       can find the Jam build scripts and core libraries. If
-      `dylan-compiler` is on the path, the emacs client will find
+      `dylan-compiler` is on the path, the emacs client will find the
       installation directory relative to that. To override it, either
       set the emacs variable `dylan-lsp-open-dylan-release` (using the
       customization interface) or set the environment variable
