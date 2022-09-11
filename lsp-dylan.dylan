@@ -192,19 +192,13 @@ end handler;
 
 // Format symbol description into a hover message.
 // The description comes from the compiler database as a string with
-// four lines - location, name, params, return - this is too much
-// to fit in, so just show the last three on one line.
-// If the input is #f or not in four line format, return #f
+// multiple lines - the first is a location which we don't need.
+// Cut this and join the rest as one line.
 define function format-hover-message
     (txt :: false-or(<string>)) => (hover :: false-or(<string>))
   if (txt)
-    let (_, fname, params, returns) = apply(values, split-lines(txt));
-    if (returns)
-      format-to-string("%s %s %s",
-                       strip(fname),
-                       strip(params),
-                       strip(returns))
-    end if;
+    let lines = split-lines(txt);
+    join(tail(lines), " ", key: strip);
   end if;
 end function;
 
