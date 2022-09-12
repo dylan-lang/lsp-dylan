@@ -47,7 +47,7 @@ end function;
 // For anything else it's the thing itself
 // Returns a list of <definition-object>s
 define generic all-definitions
-  (server :: <server>, object :: <definition-object>) => (definitions :: <list>);
+  (server :: <server>, object :: <definition-object>) => (definitions :: <sequence>);
 
 // Get a symbol's description from the compiler database.
 // This is used to implement the 'hover' function.
@@ -73,7 +73,7 @@ define function symbol-locations
     map(method(definition) environment-object-source-location(*project*, definition) end, all);
   else
     log-debug("No environment object for %s in module %s", symbol-name, module);
-    list();
+    #();
   end
 end function;
 
@@ -171,17 +171,16 @@ end function;
 // For most definition objects it's just a list with the thing itself
 define method all-definitions
     (server :: <server>, object :: <definition-object>) => (definitions :: <list>)
-    list(object);
+  list(object);
 end;
 
 // For GF it's the GF at the head of the list and all the specialising
 // methods in the tail.
 define method all-definitions
     (server :: <server>, gf :: <generic-function-object>) => (definitions :: <list>)
-  let definitions = list();
-  local method add(meth)
-          definitions := pair(meth, definitions);
-        end;
-  do-generic-function-methods(add, server, gf, client: #f);
+  let definitions = #();
+  do-generic-function-methods(method(meth)
+                                  definitions := pair(meth, definitions);
+                              end, server, gf, client: #f);
   pair(gf, definitions);
 end;

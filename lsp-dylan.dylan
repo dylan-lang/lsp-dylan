@@ -403,11 +403,11 @@ end function;
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_declaration
 // In 'Dylan world' this means jump to the generic function if there is one
 define handler textDocument/declaration
-  (session :: <session>, id, params)
+    (session :: <session>, id, params)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
-  let (line, character) = decode-position(position);
+  let (line, column) = decode-position(position);
   let doc = element($documents, uri, default: #f);
   let location = $null;
   if (~doc)
@@ -415,18 +415,18 @@ define handler textDocument/declaration
     show-error(session, format-to-string("Document not found: %s", uri));
   else
     let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, character);
+    let symbol = symbol-at-position(doc, line, column);
     if (symbol)
       let lookups = lookup-symbol(session, symbol, module: module);
       if (~empty?(lookups))
         let lookup = first(lookups);
         let target = first(lookup);
         let line = second(lookup);
-        let char = third(lookup);
+        let col = third(lookup);
         log-debug("textDocument/declaration: Lookup %s and got target=%=, line=%=, char=%=",
-                  symbol, target, line, char);
+                  symbol, target, line, col);
         let uri :: <string> = locator-to-file-uri(target);
-        location := make-empty-location(uri, line, char);
+        location := make-empty-location(uri, line, col);
       else
         log-debug("textDocument/declaration: symbol %=, not found", symbol);
       end;
@@ -459,13 +459,13 @@ define handler textDocument/definition
       let lookups = lookup-symbol(session, symbol, module: module);
       if (~empty?(lookups))
         locations := map(method(lookup)
-                             let target = first(lookup);
-                             let line = second(lookup);
-                             let char = third(lookup);
-                             log-debug("textDocument/definition: Lookup %s and got target=%=, line=%=, char=%=",
-                                       symbol, target, line, char);
-                             let uri :: <string> = locator-to-file-uri(target);
-                             make-empty-location(uri, line, char);
+                           let target = first(lookup);
+                           let line = second(lookup);
+                           let char = third(lookup);
+                           log-debug("textDocument/definition: Lookup %s and got target=%=, line=%=, char=%=",
+                                     symbol, target, line, char);
+                           let uri :: <string> = locator-to-file-uri(target);
+                           make-empty-location(uri, line, char);
                          end, lookups)
       else
         log-debug("textDocument/definition: symbol %=, not found", symbol);
@@ -550,12 +550,12 @@ define function lookup-symbol
     (session, symbol :: <string>, #key module) => (symbols :: <list>)
   let locs = symbol-locations(symbol, module: module);
   map(method(loc)
-          let source-record = loc.source-location-source-record;
-          let absolute-path = source-record.source-record-location;
-          let (name, line) = source-line-location(source-record,
-                                                  loc.source-location-start-line);
-          let column = loc.source-location-start-column;
-          list(absolute-path, line - 1, column)
+        let source-record = loc.source-location-source-record;
+        let absolute-path = source-record.source-record-location;
+        let (name, line) = source-line-location(source-record,
+                                                loc.source-location-start-line);
+        let column = loc.source-location-start-column;
+        list(absolute-path, line - 1, column)
       end, locs);
 end function;
 
