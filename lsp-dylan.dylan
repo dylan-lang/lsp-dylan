@@ -55,6 +55,7 @@ define handler initialize
   // Return the capabilities of this server
   let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
+                          "declarationProvider", #t,
                           "definitionProvider", #t,
                           "workspaceSymbolProvider", #t);
   let response-params = json("capabilities", capabilities);
@@ -392,6 +393,46 @@ define function apply-change
   end;
 end function;
 
+// Jump to Declaration
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_declaration
+// In 'Dylan world' this means jump to the generic function if there is one
+define handler textDocument/declaration
+    (session :: <session>, id, params)
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let position = params["position"];
+  let (line, column) = decode-position(position);
+  let doc = element($documents, uri, default: #f);
+  let location = $null;
+  if (~doc)
+    log-debug("textDocument/declaration: document not found: %=", uri);
+    show-error(session, format-to-string("Document not found: %s", uri));
+  else
+    let module = doc.ensure-document-module;
+    let symbol = symbol-at-position(doc, line, column);
+    if (symbol)
+      let lookups = lookup-symbol(session, symbol, module: module);
+      if (~empty?(lookups))
+        let lookup = first(lookups);
+        let target = first(lookup);
+        let line = second(lookup);
+        let col = third(lookup);
+        log-debug("textDocument/declaration: Lookup %s and got target=%=, line=%=, char=%=",
+                  symbol, target, line, col);
+        let uri :: <string> = locator-to-file-uri(target);
+        location := make-empty-location(uri, line, col);
+      else
+        log-debug("textDocument/declaration: symbol %=, not found", symbol);
+      end;
+    else
+      log-debug("textDocument/declaration: symbol is #f, nothing to lookup", symbol);
+      show-info(session, "No symbol found at current position.");
+    end;
+  end;
+  send-response(session, id, location);
+end handler;
+  
+
 // Jump to definition.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 define handler textDocument/definition
@@ -401,7 +442,7 @@ define handler textDocument/definition
   let position = params["position"];
   let (line, character) = decode-position(position);
   let doc = element($documents, uri, default: #f);
-  let location = $null;
+  let locations = $null;
   if (~doc)
     log-debug("textDocument/definition: document not found: %=", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
@@ -409,13 +450,17 @@ define handler textDocument/definition
     let module = doc.ensure-document-module;
     let symbol = symbol-at-position(doc, line, character);
     if (symbol)
-      let (target, line, char)
-        = lookup-symbol(session, symbol, module: module);
-      if (target)
-        log-debug("textDocument/definition: Lookup %s and got target=%s, line=%d, char=%d",
-                  symbol, target, line, char);
-        let uri :: <string> = locator-to-file-uri(target);
-        location := make-empty-location(uri, line, char);
+      let lookups = lookup-symbol(session, symbol, module: module);
+      if (~empty?(lookups))
+        locations := map(method(lookup)
+                           let target = first(lookup);
+                           let line = second(lookup);
+                           let char = third(lookup);
+                           log-debug("textDocument/definition: Lookup %s and got target=%=, line=%=, char=%=",
+                                     symbol, target, line, char);
+                           let uri :: <string> = locator-to-file-uri(target);
+                           make-empty-location(uri, line, char);
+                         end, lookups)
       else
         log-debug("textDocument/definition: symbol %=, not found", symbol);
       end;
@@ -424,7 +469,7 @@ define handler textDocument/definition
       show-info(session, "No symbol found at current position.");
     end;
   end;
-  send-response(session, id, location);
+  send-response(session, id, locations);
 end handler;
 
 // Maps URI strings to <open-document> objects.
@@ -493,22 +538,19 @@ define function symbol-at-position
   end
 end function;
 
-// Look up a symbol. Return the containing doc,
-// the line and column
+// Lookup a symbol, return a list of all its definitions
+// each one is a list of (path, line, column)
 define function lookup-symbol
-    (session, symbol :: <string>, #key module) => (doc, line, column)
-  let loc = symbol-location(symbol, module: module);
-  if (loc)
-    let source-record = loc.source-location-source-record;
-    let absolute-path = source-record.source-record-location;
-    let (name, line) = source-line-location(source-record,
-                                          loc.source-location-start-line);
-    let column = loc.source-location-start-column;
-    values(absolute-path, line - 1, column)
-  else
-    log-debug("Looking up %s, not found", symbol);
-    #f
-  end
+    (session, symbol :: <string>, #key module) => (symbols :: <list>)
+  let locs = symbol-locations(symbol, module: module);
+  map(method(loc)
+        let source-record = loc.source-location-source-record;
+        let absolute-path = source-record.source-record-location;
+        let (name, line) = source-line-location(source-record,
+                                                loc.source-location-start-line);
+        let column = loc.source-location-start-column;
+        list(absolute-path, line - 1, column)
+      end, locs);
 end function;
 
 // Find the project name to open.
