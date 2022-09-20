@@ -573,7 +573,7 @@ define function find-project-name
     *project-name*
   elseif (ws/find-workspace-file(working-directory()))
     // There's a dylan-tool workspace.
-    let workspace = ws/load-workspace(working-directory());
+    let workspace = ws/load-workspace();
     let library-name = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
       log-debug("found dylan-tool workspace default library name %=", library-name);

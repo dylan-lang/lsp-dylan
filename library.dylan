@@ -8,6 +8,7 @@ define library lsp-dylan
   use dfmc-back-end-implementations;
   use dfmc-reader;
   use dylan;
+  use dylan-tool-lib;
   use environment-commands;
   use environment-internal-commands;
   use environment-protocols;
@@ -23,7 +24,6 @@ define library lsp-dylan
   //use stack-walker;
   use strings;
   use system;
-  use workspaces;
 
   export
     lsp-dylan,

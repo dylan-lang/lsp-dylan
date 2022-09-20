@@ -4,9 +4,6 @@
 [submodule "ext/json"]
 	path = ext/json
 	url = https://github.com/dylan-lang/json
-[submodule "ext/workspaces"]
-	path = ext/workspaces
-	url = https://github.com/dylan-lang/workspaces
 [submodule "ext/uncommon-dylan"]
 	path = ext/uncommon-dylan
 	url = https://github.com/cgay/uncommon-dylan
@@ -19,3 +16,6 @@
 [submodule "ext/logging"]
 	path = ext/logging
 	url = https://github.com/dylan-lang/logging
+[submodule "ext/dylan-tool"]
+	path = ext/dylan-tool
+	url = https://github.com/dylan-lang/dylan-tool
