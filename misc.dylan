@@ -55,7 +55,8 @@ define function find-workspace-root
       elseif (root-path)
         as(<directory-locator>, root-path)
       end;
-  let workspace = ws/find-workspace-file(directory) & ws/load-workspace(directory);
+  let workspace = ws/find-workspace-file(directory)
+                    & ws/load-workspace(directory: directory);
   if (workspace)
     ws/workspace-directory(workspace)
   else
