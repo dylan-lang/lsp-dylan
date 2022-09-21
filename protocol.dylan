@@ -85,11 +85,12 @@ define function make-position (line, character)
   json("line", line, "character", character)
 end function;
 
-// Make json for a Location that's a 'zero size' range.
+// Make json for a Location that's range.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
-define function make-empty-location (doc :: <string>, line, character)
-  let pos = make-position(line, character);
-  json("uri", doc, "range", make-range(pos, pos))
+define function make-location (doc :: <string>, start-line, start-character, end-line, end-character)
+  let start-pos = make-position(start-line, start-character);
+  let end-pos = make-position(end-line, end-character);
+  json("uri", doc, "range", make-range(start-pos, end-pos))
 end function;
 
 // Decode a Position json object.  Note line and character are zero-based.

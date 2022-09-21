@@ -64,6 +64,7 @@ define handler initialize
                           "textDocumentSync", 1,
                           "declarationProvider", #t,
                           "definitionProvider", #t,
+                          "referencesProvider", #t,
                           "workspaceSymbolProvider", #t);
   let response-params = json("capabilities", capabilities);
   send-response(session, id, response-params);
@@ -218,12 +219,9 @@ end function;
 // Returns: contents, (optional) range
 define handler textDocument/hover
     (session :: <session>, id, params)
-  let text-document = params["textDocument"];
-  let uri = text-document["uri"];
-  let position = params["position"];
-  let (line, column) = decode-position(position);
-  let doc = element($documents, uri, default: #f);
+  let (doc, line, column)  = textdocumentposition-to-position(params);
   if (~doc)
+    let uri = params["textDocument"]["uri"];
     log-debug("textDocument/hover: document %= not found", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
   else
@@ -397,7 +395,8 @@ define function apply-change
     show-error(session, "didChange doesn't support ranges yet");
   else
     log-debug("document replaced: %s", document.document-uri);
-    show-info(session, "Document content replaced");
+    // This is too annoying on VS Code:
+    // show-info(session, "Document content replaced");
     document-lines(document) := split-lines(text);
   end;
 end function;
@@ -407,13 +406,10 @@ end function;
 // In 'Dylan world' this means jump to the generic function if there is one
 define handler textDocument/declaration
     (session :: <session>, id, params)
-  let text-document = params["textDocument"];
-  let uri = text-document["uri"];
-  let position = params["position"];
-  let (line, column) = decode-position(position);
-  let doc = element($documents, uri, default: #f);
+  let (doc, line, column) = textdocumentposition-to-position(params);
   let location = $null;
   if (~doc)
+    let uri = params["textDocument"]["uri"];
     log-debug("textDocument/declaration: document not found: %=", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
   else
@@ -422,14 +418,7 @@ define handler textDocument/declaration
     if (symbol)
       let lookups = lookup-symbol(session, symbol, module: module);
       if (~empty?(lookups))
-        let lookup = first(lookups);
-        let target = first(lookup);
-        let line = second(lookup);
-        let col = third(lookup);
-        log-debug("textDocument/declaration: Lookup %s and got target=%=, line=%=, char=%=",
-                  symbol, target, line, col);
-        let uri :: <string> = locator-to-file-uri(target);
-        location := make-empty-location(uri, line, col);
+        location := first(lookups);
       else
         log-debug("textDocument/declaration: symbol %=, not found", symbol);
       end;
@@ -446,36 +435,54 @@ end handler;
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 define handler textDocument/definition
     (session :: <session>, id, params)
-  let text-document = params["textDocument"];
-  let uri = text-document["uri"];
-  let position = params["position"];
-  let (line, character) = decode-position(position);
-  let doc = element($documents, uri, default: #f);
+  let (doc, line, column) = textdocumentposition-to-position(params);
   let locations = $null;
   if (~doc)
+    let uri = params["textDocument"]["uri"];
     log-debug("textDocument/definition: document not found: %=", uri);
     show-error(session, format-to-string("Document not found: %s", uri));
   else
     let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, character);
+    let symbol = symbol-at-position(doc, line, column);
     if (symbol)
-      let lookups = lookup-symbol(session, symbol, module: module);
-      if (~empty?(lookups))
-        locations := map(method(lookup)
-                           let target = first(lookup);
-                           let line = second(lookup);
-                           let char = third(lookup);
-                           log-debug("textDocument/definition: Lookup %s and got target=%=, line=%=, char=%=",
-                                     symbol, target, line, char);
-                           let uri :: <string> = locator-to-file-uri(target);
-                           make-empty-location(uri, line, char);
-                         end, lookups)
-      else
+      locations := lookup-symbol(session, symbol, module: module);
+      if (empty?(locations))
         log-debug("textDocument/definition: symbol %=, not found", symbol);
       end;
     else
       log-debug("textDocument/definition: symbol is #f, nothing to lookup", symbol);
       show-info(session, "No symbol found at current position.");
+    end;
+  end;
+  send-response(session, id, locations);
+end handler;
+
+// Find references to a symbol
+// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references
+define handler textDocument/references
+  (session :: <session>, id, params)
+  let (doc, line, column) = textdocumentposition-to-position(params);
+  let context = params["context"];
+  let include-declaration = context["includeDeclaration"];
+  let locations = $null;
+  if (~doc)
+    let uri = params["textDocument"]["uri"];
+    log-debug("textDocument/references: document %= not found", uri);
+    show-error(session, format-to-string("Document not found: %s", uri));
+  else
+    let module = doc.ensure-document-module;
+    let symbol = symbol-at-position(doc, line, column);
+    if (symbol)
+      let env-object = get-environment-object(symbol, module: module);
+      if (env-object)
+        let references = all-references(env-object, include-self?: include-declaration);
+        if (~empty?(references))
+          locations := map(method(reference)
+                               let source-location = get-location(reference);
+                               source-location-to-Location(source-location);
+                           end, references);
+        end;
+      end;
     end;
   end;
   send-response(session, id, locations);
@@ -547,19 +554,47 @@ define function symbol-at-position
   end
 end function;
 
-// Lookup a symbol, return a list of all its definitions
-// each one is a list of (path, line, column)
+// Lookup a symbol, return a sequence of all the locations
+// where it is defined
+// Each one is in a format compatible with LSP's Location object
 define function lookup-symbol
     (session, symbol :: <string>, #key module) => (symbols :: <sequence>)
-  let locs = symbol-locations(symbol, module: module);
-  map(method(loc)
-        let source-record = loc.source-location-source-record;
-        let absolute-path = source-record.source-record-location;
-        let (name, line) = source-line-location(source-record,
-                                                loc.source-location-start-line);
-        let column = loc.source-location-start-column;
-        list(absolute-path, line - 1, column)
-      end, locs);
+  let object = get-environment-object(symbol, module: module);
+  if (object)
+    let defs = all-definitions(*project*, object);
+    let locs = map(get-location, defs);
+    map(source-location-to-Location, locs);
+  else
+    #()
+  end if;
+end function;
+
+// Convert a <source-location> to LSP's Location object
+define function source-location-to-Location
+    (source-location :: <source-location>) => (location :: <object>)
+  let source-record = source-location.source-location-source-record;
+  let absolute-path = source-record.source-record-location;
+  let (name, start-line) = source-line-location(source-record,
+                                                source-location.source-location-start-line);
+  let (name, end-line) = source-line-location(source-record,
+                                              source-location.source-location-end-line);
+  let start-column = source-location.source-location-start-column;
+  let end-column = source-location.source-location-end-column;
+  let uri = locator-to-file-uri(absolute-path);
+  make-location(uri, start-line - 1, start-column, end-line - 1, end-column);
+end function;
+
+// Convert TextDocumentPositionParams to (doc, line, column)
+// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams
+// line and column are zero-based
+define function textdocumentposition-to-position
+    (params :: <object>) => (doc :: false-or(<open-document>), line :: <integer>, column :: <integer>)
+  let text-document = params["textDocument"];
+  let uri = text-document["uri"];
+  let position = params["position"];
+  let (line, column) = decode-position(position);
+  let doc = element($documents, uri, default: #f);
+  values(doc, line, column)
 end function;
 
 // Find the project name to open.
@@ -717,7 +752,7 @@ define function enable-od-environment-debug-logging ()
 end function;
 
 ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
-       one-off-debug, dump, show-warning, show-log, show-error);
+       dump, show-warning, show-log, show-error);
 
 
 // Local Variables:
