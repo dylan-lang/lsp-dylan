@@ -21,8 +21,8 @@ define function invoke-message-handler
   let fn = element($lsp-message-handlers, name, default: #f);
   if (fn)
     if (*trace-messages*)
-      log-debug("Invoking message handler %= with id %= and params %=",
-                name, id, params);
+      log-debug("Invoking %= with id %= and params %s",
+                name, id, print-json-to-string(params));
     end;
     block ()
       fn(session, id, params);
