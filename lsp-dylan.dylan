@@ -184,9 +184,12 @@ define handler workspace/didChangeConfiguration
   log-debug("Settings: %s", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
-  let dylan-settings = settings["dylan"];
-  let project-name = element(dylan-settings, "project", default: #f);
-  *project-name* := (project-name ~= "") & project-name;
+  let dylan-settings = element(settings, "dylan", default: #f);
+  let project-name = dylan-settings
+                       & element(dylan-settings, "project", default: #f);
+  if (project-name & ~empty?(project-name))
+    *project-name* := project-name;
+  end;
   //show-info(session, "The config was changed");
   test-open-project(session);
 end handler;
