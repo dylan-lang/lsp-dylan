@@ -434,7 +434,7 @@ define handler textDocument/declaration
   end;
   send-response(session, id, location);
 end handler;
-  
+
 
 // Jump to definition.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
@@ -544,7 +544,7 @@ end function;
 // Lookup a symbol, return a list of all its definitions
 // each one is a list of (path, line, column)
 define function lookup-symbol
-    (session, symbol :: <string>, #key module) => (symbols :: <list>)
+    (session, symbol :: <string>, #key module) => (symbols :: <sequence>)
   let locs = symbol-locations(symbol, module: module);
   map(method(loc)
         let source-record = loc.source-location-source-record;
