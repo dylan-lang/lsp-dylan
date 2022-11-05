@@ -69,14 +69,24 @@ define function symbol-locations
     (symbol-name :: <string>, #key module) => (source-locations :: <sequence>)
   let primary = get-environment-object(symbol-name, module: module);
   if (primary)
+    let all = all-definitions(*project*, primary);
+    if (~empty?(all))
+      log-debug("symbol-locations:");
+    end;
     map(method (definition)
           let sloc = environment-object-source-location(*project*, definition);
-          log-debug("definition = %s, location = %s", definition, sloc);
+          let srec = sloc.source-location-source-record;
+          let start = srec.source-record-start-line; // e.g., end of file header
+          log-debug("  %s in %s:%s-%s",
+                    environment-object-display-name(*project*, definition, #f, qualify-names?: #f),
+                    srec.source-record-location,
+                    start + sloc.source-location-start-line,
+                    start + sloc.source-location-end-line);
           sloc
         end,
-        all-definitions(*project*, primary))
+        all)
   else
-    log-debug("No environment object for %s in module %s", symbol-name, module);
+    log-debug("symbol-locations: %s not found in module %s", symbol-name, module);
     #()
   end
 end function;
