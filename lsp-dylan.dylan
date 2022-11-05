@@ -184,9 +184,12 @@ define handler workspace/didChangeConfiguration
   log-debug("Settings: %s", print-json-to-string(params));
   // TODO do something with this info.
   let settings = params["settings"];
-  let dylan-settings = settings["dylan"];
-  let project-name = element(dylan-settings, "project", default: #f);
-  *project-name* := (project-name ~= "") & project-name;
+  let dylan-settings = element(settings, "dylan", default: #f);
+  let project-name = dylan-settings
+                       & element(dylan-settings, "project", default: #f);
+  if (project-name & ~empty?(project-name))
+    *project-name* := project-name;
+  end;
   //show-info(session, "The config was changed");
   test-open-project(session);
 end handler;
@@ -431,7 +434,7 @@ define handler textDocument/declaration
   end;
   send-response(session, id, location);
 end handler;
-  
+
 
 // Jump to definition.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
@@ -541,7 +544,7 @@ end function;
 // Lookup a symbol, return a list of all its definitions
 // each one is a list of (path, line, column)
 define function lookup-symbol
-    (session, symbol :: <string>, #key module) => (symbols :: <list>)
+    (session, symbol :: <string>, #key module) => (symbols :: <sequence>)
   let locs = symbol-locations(symbol, module: module);
   map(method(loc)
         let source-record = loc.source-location-source-record;

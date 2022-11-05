@@ -62,18 +62,22 @@ define function describe-symbol
   let env = get-environment-object(symbol-name, module: module);
   if (env)
     environment-object-description(*project*, env, module)
-  end if;
-end;
+  end
+end function;
 
 define function symbol-locations
-    (symbol-name :: <string>, #key module)
+    (symbol-name :: <string>, #key module) => (source-locations :: <sequence>)
   let primary = get-environment-object(symbol-name, module: module);
   if (primary)
-    let all = all-definitions(*project*, primary);
-    map(method(definition) environment-object-source-location(*project*, definition) end, all);
+    map(method (definition)
+          let sloc = environment-object-source-location(*project*, definition);
+          log-debug("definition = %s, location = %s", definition, sloc);
+          sloc
+        end,
+        all-definitions(*project*, primary))
   else
     log-debug("No environment object for %s in module %s", symbol-name, module);
-    #();
+    #()
   end
 end function;
 
@@ -170,14 +174,14 @@ end function;
 
 // For most definition objects it's just a list with the thing itself
 define method all-definitions
-    (server :: <server>, object :: <definition-object>) => (definitions :: <list>)
-  list(object);
-end;
+    (server :: <server>, object :: <definition-object>) => (definitions :: <sequence>)
+  list(object)
+end method;
 
 // For GF it's the GF at the head of the list and all the specialising
 // methods in the tail.
 define method all-definitions
-    (server :: <server>, gf :: <generic-function-object>) => (definitions :: <list>)
+    (server :: <server>, gf :: <generic-function-object>) => (definitions :: <sequence>)
   let definitions = #();
   do-generic-function-methods(method(meth)
                                   definitions := pair(meth, definitions);

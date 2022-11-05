@@ -72,7 +72,7 @@
 		       dylan-lsp-open-dylan-release))
 	(env (getenv "OPEN_DYLAN_RELEASE_INSTALL")))
     (list
-     ;; Take value from first of .emacs, the environment, or inferred 
+     ;; Take value from first of .emacs, the environment, or inferred.
      (cons "OPEN_DYLAN_RELEASE_INSTALL" (or dotemacs
 					    env
 					    (dylan-lsp--infer-install-dir))))))
@@ -91,4 +91,3 @@
 
 (lsp-consistency-check dylan-lsp)
 (dylan-lsp--start)
-
