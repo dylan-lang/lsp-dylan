@@ -8,7 +8,8 @@ Copyright: 2019
 // Copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
 
 
-define variable *server* = #f;
+// Note that the server here is not a subclass of <server>:environment-protocols.
+define variable *server* :: false-or(<command-line-server>) = #f;
 define variable *project* = #f;
 define variable *module* = #f;
 define variable *library* = #f;
