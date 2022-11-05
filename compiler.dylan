@@ -42,13 +42,6 @@ define function open-project
   project
 end function;
 
-// Given a definition, make a list of all its definitions
-// For generic functions it is the GF and all its specializing methods
-// For anything else it's the thing itself
-// Returns a list of <definition-object>s
-define generic all-definitions
-  (server :: <server>, object :: <definition-object>) => (definitions :: <sequence>);
-
 // Get a symbol's description from the compiler database.
 // This is used to implement the 'hover' function.
 //
@@ -182,19 +175,37 @@ define function get-environment-object
                           module: module);
 end function;
 
+// Given a definition, find all associated definitions.
+// Returns a sequence of <definition-object>s.
+define generic all-definitions
+  (server :: <server>, object :: <definition-object>) => (definitions :: <sequence>);
+
 // For most definition objects it's just a list with the thing itself
 define method all-definitions
     (server :: <server>, object :: <definition-object>) => (definitions :: <sequence>)
   list(object)
 end method;
 
-// For GF it's the GF at the head of the list and all the specialising
-// methods in the tail.
+// For generic functions it's the GF at the front followed by the GF methods.
 define method all-definitions
     (server :: <server>, gf :: <generic-function-object>) => (definitions :: <sequence>)
-  let definitions = #();
-  do-generic-function-methods(method(meth)
-                                  definitions := pair(meth, definitions);
-                              end, server, gf, client: #f);
-  pair(gf, definitions);
-end;
+  local method source-locations-equal? (def1, def2)
+          // Note that there's a source-location-equal? method but it doesn't
+          // work for <compiler-range-source-location>s. We should fix that.
+          let loc1 = environment-object-source-location(server, def1);
+          let loc2 = environment-object-source-location(server, def2);
+          loc1.source-location-source-record = loc2.source-location-source-record
+            & loc1.source-location-start-line = loc2.source-location-start-line
+            & loc1.source-location-end-line = loc2.source-location-end-line
+        end;
+  let methods = generic-function-object-methods(server, gf);
+  // Add gf to the result, but only if it's not an implicitly defined generic
+  // function, since that would cause unnecessary prompting for which method
+  // when there's only one. Since <generic-function-object>s have no
+  // implicit/explicit marker, look for equal source locations.
+  if (any?(curry(source-locations-equal?, gf), methods))
+    methods
+  else
+    concatenate(vector(gf), methods) // Put gf first.
+  end
+end method;
