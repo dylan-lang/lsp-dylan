@@ -230,7 +230,7 @@ define handler textDocument/hover
                     json("contents", make-markup(msg, markdown?: #f));
                   end;
                 end;
-    send-response(session, id, hover);
+    send-response(session, id, hover | $null);
   end if;
 end handler;
 
