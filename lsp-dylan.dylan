@@ -698,7 +698,8 @@ define function enable-od-environment-debug-logging ()
                      #"environment-debugger",
                      #"environment-profiler",
                      #"environment-protocols",
-                     #"lsp");   // our own temp category. debug-out(#"lsp", ...)
+                     #"lsp",   // our own temp category. debug-out(#"lsp", ...)
+                     #"project-manager");
   local method lsp-debug-out (fn :: <function>)
           let (fmt, #rest args) = apply(values, fn());
           // I wish we could log the "part" here, but debug-out drops it.
