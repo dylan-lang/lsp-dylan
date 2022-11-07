@@ -78,9 +78,9 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
       The emacs variable takes priority if both are set.
 
-3. Start emacs and make sure that `setup.el` is loaded. For example:
+3. Start emacs and make sure that `lsp-dylan.el` is loaded. For example:
 
-     `emacs --load=/path/to/lsp-dylan/setup.el`
+     `emacs --load=/path/to/lsp-dylan/lsp-dylan.el`
 
    Obviously you may modify your Emacs init file instead, if you prefer.
 
