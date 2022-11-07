@@ -106,14 +106,14 @@ define handler initialized
   end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
-  *server* := start-compiler(in-stream, out-stream);
+  *dylan-compiler* := start-compiler(in-stream, out-stream);
   test-open-project(session);
 end handler;
 
 define function test-open-project (session) => ()
   let project-name = find-project-name();
   log-debug("test-open-project: Found project name %=", project-name);
-  *project* := open-project(*server*, project-name);
+  *project* := open-project(*dylan-compiler*, project-name);
   log-debug("test-open-project: Project opened");
 
   // Let's see if we can find a module.
@@ -152,7 +152,8 @@ define function test-open-project (session) => ()
   else
     log-debug("test-open-project: project did't open");
   end if;
-  log-debug("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
+  log-debug("test-open-project: Compiler started: %=, Project %=",
+            *dylan-compiler*, *project*);
   log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
 end function;
 
@@ -301,7 +302,7 @@ define function publish-diagnostics
     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
-  let context = server-context(*server*);
+  let context = server-context(*dylan-compiler*);
   let project = context-project(context);
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
