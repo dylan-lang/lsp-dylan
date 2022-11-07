@@ -12,6 +12,10 @@ install: build
 	mkdir -p $(install_bin)
 	cp _build/sbin/$(app_name) $(install_bin)/
 
+install-debug: build
+	mkdir -p $(install_bin)
+	cp _build/sbin/$(app_name).dbg $(install_bin)/$(app_name)
+
 test: build
 	dylan-compiler -build lsp-dylan-test-suite
 	_build/bin/lsp-dylan-test-suite

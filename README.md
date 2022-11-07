@@ -13,9 +13,9 @@ As of 2022-09-07, the server implements
 * Jump to definition
 * Hover
 
-When applied to a symbol which is bound to a generic function, "jump to 
-definition" will show a clickable list containing the generic function and 
-its specific methods, whereas "jump to declaration" will jump straight to 
+When applied to a symbol which is bound to a generic function, "jump to
+definition" will show a clickable list containing the generic function and
+its specific methods, whereas "jump to declaration" will jump straight to
 the generic function.
 
 In Emacs, when you jump to another `.dylan` file, that file does
@@ -47,7 +47,7 @@ makes two attempts, in the following order:
 
 Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
 
-1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode) and Dylan mode. 
+1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode) and Dylan mode.
    Both these are available from MELPA.
 
 2. Set environment variables.
@@ -89,9 +89,9 @@ Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
    it. You must either `(setq dylan-lsp-exe-pathname
    "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
    that the `dylan-lsp-server` binary is on your `PATH`.
-   
-The emacs client has a customization group "Dylan Lsp" which is a member of the "Programming 
-/ Tools" group, and has the following variables:
+
+The emacs client has a customization group "Dylan Lsp" which is a member of the
+"Programming / Tools" group, and has the following variables:
 
 * `dylan-lsp-exe-pathname`
 * `dylan-lsp-debug-server`
@@ -105,24 +105,27 @@ These are documented in the customization interface within emacs.
 These instructions were tested on Linux and macOS.
 
 1.  Install Visual Studio Code and `npm`.
-2.  The vscode extension is in the folder `vscode-dylan`. It is necessary to run 
-    `npm install` in this folder before starting the extension for the first time, and any 
-    time a git pull updates the dependencies.
+2.  The VS Code extension is in the folder `vscode-dylan`. It is necessary to
+    run `npm install` in this folder before starting the extension for the
+    first time, and any time a git pull updates the dependencies.
 3.  Open the `vscode-dylan` folder in VS Code.
-4.  In the debug viewlet, click the green play arrow (Launch Extension) or press `F5`
-5.  A build process will begin in 'watch mode'; whenever the source is changed, the
-    extension will be rebuilt. It is possible to debug the vscode extension in this
-    window, set breakpoints, watch variables and so on.
-6.  A new VS Code window will open with the extension running. 
+4.  In the debug viewlet, click the green play arrow (Launch Extension) or
+    press `F5`.
+5.  A build process will begin in 'watch mode'; whenever the source is changed,
+    the extension will be rebuilt. It is possible to debug the VS Code
+    extension in this window, set breakpoints, watch variables and so on.
+6.  A new VS Code window will open with the extension running.
 7.  Open a folder with a Dylan project in it.
-8.  If `dylan-lsp-server` is on the system path, it will be found. Otherwise, open the 
-    Settings *in the new extension window*, find the Dylan section under Extensions, and
-    edit the path to the LSP server. The full, absolute pathname to the executable needs
-    to be specified. It is usually better to set this in the 'User' scope, otherwise it will
-    only apply to that particular project.
-9.  It should now be possible to use the extension window to edit Dylan code using LSP.
-10. If the vscode extension is changed, it is necessary to restart the extension host, or
-    just close and re-open the extension window.
+8.  If `dylan-lsp-server` is on the system path, it will be found. Otherwise,
+    open the Settings *in the new extension window*, find the Dylan section
+    under Extensions, and edit the path to the LSP server. The full, absolute
+    pathname to the executable needs to be specified. It is usually better to
+    set this in the 'User' scope, otherwise it will only apply to that
+    particular project.
+9.  It should now be possible to use the extension window to edit Dylan code
+    using LSP.
+10. If the VS Code extension is changed, it is necessary to restart the
+    extension host, or just close and re-open the extension window.
 
 
 ## References
