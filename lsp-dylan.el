@@ -65,18 +65,18 @@
     installdir))
 
 (defun lsp-dylan--environment ()
-  "Generate the environment vars to pass to the server."
-  (let* ((install-dir (or lsp-dylan-open-dylan-release
-                          (getenv "OPEN_DYLAN_RELEASE_INSTALL")
-                          (lsp-dylan--infer-install-dir)
-                          (error "Can't find Open Dylan install directory")))
-         (registry-dir (or (getenv "OPEN_DYLAN_USER_REGISTRIES")
-                           (expand-file-name "sources/registry"
-                                             (file-name-as-directory install-dir)))))
-    (list
-     ;; Take value from first of .emacs, the environment, or inferred.
-     (cons "OPEN_DYLAN_RELEASE_INSTALL" install-dir)
-     (cons "OPEN_DYLAN_USER_REGISTRIES" registry-dir))))
+  "Generate the environment vars to set for the server."
+  (let ((registry-dir (getenv "OPEN_DYLAN_USER_REGISTRIES")))
+    ;; If env var already set, we're done.
+    (unless registry-dir
+      (let ((install-dir (or lsp-dylan-open-dylan-release
+                             (getenv "OPEN_DYLAN_RELEASE_INSTALL")
+                             (lsp-dylan--infer-install-dir)
+                             (error "Can't find Open Dylan install directory"))))
+        (list
+         (cons "OPEN_DYLAN_USER_REGISTRIES"
+               (expand-file-name "sources/registry"
+                                 (file-name-as-directory install-dir))))))))
 
 (defun lsp-dylan--initialized (workspace)
   "Event handler for when the connection is initialized")
