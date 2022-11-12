@@ -40,19 +40,26 @@ define handler initialize
   log-debug("initialize: debug: %s, messages: %s, verbose: %s",
             *debug-mode*, *trace-messages*, *trace-verbose*);
 
-  // Save the workspace root (if provided) for later.
-  // rootUri takes precedence over rootPath if both are provided.
-  // TODO: can root-uri be something that's not a file:// URL?
-  let root-uri  = element(params, "rootUri", default: #f);
-  let root-path = element(params, "rootPath", default: #f);
-  session.root := find-workspace-root(root-uri, root-path);
-  if (session.root)
-    log-info("Found Dylan workspace root: %s", session.root);
-    working-directory() := session.root;
+  // The initialize message may be received multiple times and we don't want
+  // to change the working directory each time. Need to re-use the same _build
+  // directory to keep build times short. (Should this be ~== $session-active ?)
+  if (session.state == $session-preinit)
+    let root-uri  = element(params, "rootUri", default: #f);
+    let root-path = element(params, "rootPath", default: #f);
+    // TODO(cgay): Both rootPath and rootUri are deprecated in favor of
+    // workspaceFolders, but lsp-mode doesn't send workspaceFolders.
+    // Does VS Code send it?
+    session.root := find-workspace-root(root-uri, root-path);
+    if (session.root)
+      log-info("Found Dylan workspace root: %s", session.root);
+      working-directory() := session.root;
+    end;
+    log-info("Dylan LSP server working directory: %s", working-directory());
+    session.state := $session-active;
   end;
-  log-info("Dylan LSP server working directory: %s", working-directory());
 
   // Return the capabilities of this server
+  // TODO(cgay): diagnosticProvider
   let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
                           "declarationProvider", #t,
@@ -60,8 +67,6 @@ define handler initialize
                           "workspaceSymbolProvider", #t);
   let response-params = json("capabilities", capabilities);
   send-response(session, id, response-params);
-  // All OK to proceed.
-  session.state := $session-active;
 end handler;
 
 /* Handler for 'initialized' message.
