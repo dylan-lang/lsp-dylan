@@ -43,19 +43,19 @@ define handler initialize
   // The initialize message may be received multiple times and we don't want
   // to change the working directory each time. Need to re-use the same _build
   // directory to keep build times short. (Should this be ~== $session-active ?)
-  if (session.state == $session-preinit)
+  if (session.session-state == $session-preinit)
     let root-uri  = element(params, "rootUri", default: #f);
     let root-path = element(params, "rootPath", default: #f);
     // TODO(cgay): Both rootPath and rootUri are deprecated in favor of
     // workspaceFolders, but lsp-mode doesn't send workspaceFolders.
     // Does VS Code send it?
-    session.root := find-workspace-root(root-uri, root-path);
-    if (session.root)
-      log-info("Found Dylan workspace root: %s", session.root);
-      working-directory() := session.root;
+    session.session-root := find-workspace-root(root-uri, root-path);
+    if (session.session-root)
+      log-info("Found Dylan workspace root: %s", session.session-root);
+      working-directory() := session.session-root;
     end;
     log-info("Dylan LSP server working directory: %s", working-directory());
-    session.state := $session-active;
+    session.session-state := $session-active
   end;
 
   // Return the capabilities of this server
@@ -617,7 +617,7 @@ end function;
 
 define handler exit
     (session :: <session>, id, params)
-  session.state := $session-killed;
+  session.session-state := $session-killed;
 end handler;
 
 // Feels like the top-level loop should be in the dylan-lsp-server library but
@@ -626,7 +626,7 @@ end handler;
 
 define function lsp-pre-init-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-preinit)
+  while (session.session-state == $session-preinit)
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     if (meth = "initialize" | meth = "exit")
@@ -642,7 +642,7 @@ end function;
 
 define function lsp-active-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-active)
+  while (session.session-state == $session-active)
     log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     invoke-message-handler(meth, session, id, params);
@@ -653,7 +653,7 @@ end function;
 define function lsp-shutdown-state-loop
     (session :: <session>) => ()
   block (return)
-    while (session.state == $session-shutdown)
+    while (session.session-state == $session-shutdown)
       log-debug("lsp-shutdown-state-loop: waiting for message");
       let (meth, id, params) = receive-message(session);
       if (meth = "exit")

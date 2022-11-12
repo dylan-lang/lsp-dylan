@@ -131,14 +131,13 @@ define constant $session-killed = 4;
 // Manage one connection to a server, including life-cycle.
 define class <session> (<object>)
   // Next ID to use in a request/notification.
-
-  slot id :: <integer> = 0;
+  slot session-id :: <integer> = 0;
   // Current state, see $session-preinit et al.
-  slot state :: <integer> = $session-preinit;
+  slot session-state :: <integer> = $session-preinit;
   // Table of message-handler functions keyed by ID.
-  constant slot callbacks = make(<equal-table>);
+  constant slot session-callbacks = make(<equal-table>);
   // Root path or URI
-  slot root = #f;
+  slot session-root = #f;
 end class;
 
 define generic send-raw-message
@@ -243,9 +242,9 @@ define method receive-message
         if (*trace-messages*)
           log-debug("receive-message: got id %=", id);
         end;
-        let func = element(session.callbacks, id, default: #f);
+        let func = element(session.session-callbacks, id, default: #f);
         if (func)
-          remove-key!(session.callbacks, id);
+          remove-key!(session.session-callbacks, id);
           func(session, id, params);
         end;
       end;
@@ -257,14 +256,14 @@ define method send-request
     (session :: <session>, method-name :: <string>, params :: <object>,
      #key callback :: false-or(<function>))
  => ()
-  let id = session.id;
-  session.id := id + 1;
+  let id = session.session-id;
+  session.session-id := id + 1;
   let message = make-message(method-name: method-name, id: id);
   if (params)
     message["params"] := params;
   end if;
   if (callback)
-    session.callbacks[id] := callback;
+    session.session-callbacks[id] := callback;
   end if;
   send-raw-message(session, message);
   if (*trace-messages*)
@@ -305,9 +304,9 @@ end method;
  * This is the only one implemented for now.
  */
 define class <stdio-session> (<session>)
-  constant slot input-stream :: <stream>,
+  constant slot session-input-stream :: <stream>,
     required-init-keyword: input-stream:;
-  constant slot output-stream :: <stream>,
+  constant slot session-output-stream :: <stream>,
     required-init-keyword: output-stream:;
 end class;
 
@@ -317,14 +316,14 @@ define method send-raw-message
   if (*trace-messages*)
     log-debug("send-raw-message: %s", str);
   end;
-  write-json-message(session.output-stream, str);
+  write-json-message(session.session-output-stream, str);
 end method;
 
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
-  read-json-message(session.input-stream)
+  read-json-message(session.session-input-stream)
 end method;
 
 define method flush (session :: <stdio-session>) => ()
-  force-output(session.output-stream);
+  force-output(session.session-output-stream);
 end method;
