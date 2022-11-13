@@ -9,8 +9,10 @@
 
 (defgroup lsp-dylan nil
   "Options controlling the Dylan LSP server."
-  :group 'tools
-  :prefix "lsp-dylan-")
+  :group 'lsp-mode
+  :prefix "lsp-dylan-"
+  :link '(url-link "https://github.com/dylan-lang/lsp-dylan/blob/master/README.md"))
+
 
 (defcustom lsp-dylan-exe-pathname "dylan-lsp-server"
   "Name of the dylan-lsp-server executable.
