@@ -8,8 +8,7 @@ Copyright: 2019
 // Copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
 
 
-// Note that the server here is not a subclass of <server>:environment-protocols.
-define variable *server* :: false-or(<command-line-server>) = #f;
+define variable *dylan-compiler* :: false-or(<command-line-server>) = #f;
 define variable *project* = #f;
 define variable *module* = #f;
 define variable *library* = #f;
@@ -112,7 +111,7 @@ define function one-off-debug ()
   log-debug("Database: %=", project-compiler-database(project));
 
   *project* := project;
-  *server* := srv;
+  *dylan-compiler* := srv;
   let symbol-name = "zeor";
   let library = project-library(project);
   let module = find-module(project, "testproject", library: library);

@@ -7,26 +7,24 @@ Dylan.
 
 ## Current Status
 
-As of 2022-09-07, the server implements
+As of 2022-11-07, the server implements
 
 * Jump to declaration
 * Jump to definition
-* Hover
+* Diagnostics (i.e., compiler warnings)
+* Hover (i.e., argument lists)
 
 When applied to a symbol which is bound to a generic function, "jump to
 definition" will show a clickable list containing the generic function and
 its specific methods, whereas "jump to declaration" will jump straight to
 the generic function.
 
-In Emacs, when you jump to another `.dylan` file, that file does
-not in automatically have LSP enabled so you must use `M-x lsp` again.
-
 We are currently using version [3.15 of the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/).
 
 
 ## Opening Projects
 
-The LSP server needs to be able to open a project (essentially a Dylan library)
+The LSP server needs to be able to open a project (that is, a Dylan library)
 associated with the file you're editing when you turn on LSP in your editor. It
 makes two attempts, in the following order:
 
@@ -42,63 +40,57 @@ makes two attempts, in the following order:
    name as the basename of the file can be opened via the registry. This should
    eventually be fixed.)
 
+Normally you shouldn't need to set any environment variables; everything is
+derived from the full pathname to the `dylan-compiler` executable, which must
+be on your `PATH`.
+
+However, sometimes you may be working on several libraries at once and they're
+not all listed in the registry found as described above. In that case, add all
+the relevant registry directories to `OPEN_DYLAN_USER_REGISTRIES`. For example:
+
+    export OPEN_DYLAN_USER_REGISTRIES=/project1/registry:/project2/registry
+
+See [Using Source
+Registries](https://opendylan.org/documentation/getting-started-cli/source-registries.html)
+for more.
 
 ## Emacs Usage
 
-Testing with Emacs [lsp-mode](https://github.com/emacs-lsp/lsp-mode).
+1. Make sure the `dylan-lsp-server` executable is on your `PATH`, or customize
+   the `lsp-dylan-exe-pathname` elisp variable. See below for more on
+   customization.
 
 1. Install [lsp-mode](https://github.com/emacs-lsp/lsp-mode) and Dylan mode.
-   Both these are available from MELPA.
+   Both of these are available from MELPA.
 
-2. Set environment variables.
+2. When you jump to another `.dylan` file, that file does not automatically
+   have LSP enabled so you must use `M-x lsp` again. To make this automatic,
+   add this to your emacs init file:
 
-   a. Currently the LSP server only opens projects via the Dylan registry so
-      it's important to either start emacs in the directory containing your
-      "registry" directory or set `OPEN_DYLAN_USER_REGISTRIES` to contain that
-      registry directory.
+       `(add-hook 'dylan-mode-hook 'lsp)`
 
-      If you are developing the lsp-dylan code itself and also modifying Open
-      Dylan at the same time, you may want to include
-      `.../opendylan/sources/registry` in the list as well. Otherwise, when you
-      use `M-.` etc to jump to definitions for used libraries, files in the
-      Open Dylan install directory (which is not under source control) will be
-      opened. For example:
+3. Start emacs and make sure that `lsp-dylan.el` is loaded. For example:
 
-        export OPEN_DYLAN_USER_REGISTRIES=/path/to/lsp-dylan/registry:/path/to/opendylan/sources/registry
+     `emacs --load=/path/to/lsp-dylan/lsp-dylan.el`
 
-   b. The server needs the Open Dylan installation directory, so it
-      can find the Jam build scripts and core libraries. If
-      `dylan-compiler` is on the path, the emacs client will find the
-      installation directory relative to that. To override it, either
-      set the emacs variable `dylan-lsp-open-dylan-release` (using the
-      customization interface) or set the environment variable
-      `OPEN_DYLAN_RELEASE_INSTALL`. For example:
+   You will probably want to modify your Emacs init file to load the file.
 
-          export OPEN_DYLAN_RELEASE_INSTALL=/path/to/opendylan-2021.1
+4. Open a Dylan source file and type `M-x lsp` to start the client (unless you
+   added the hook above, in which case it started automatically).
 
-      The emacs variable takes priority if both are set.
+The client starts the LSP server (the `dylan-lsp-server` executable) and
+connects to it.
 
-3. Start emacs and make sure that `setup.el` is loaded. For example:
-
-     `emacs --load=/path/to/lsp-dylan/setup.el`
-
-   Obviously you may modify your Emacs init file instead, if you prefer.
-
-4. Open a Dylan source file and type `M-x lsp` to start the client. The client
-   starts the LSP server (the `dylan-lsp-server` executable) and connects to
-   it. You must either `(setq dylan-lsp-exe-pathname
-   "/absolute/path/to/dylan-lsp-server")` in your Emacs init file or make sure
-   that the `dylan-lsp-server` binary is on your `PATH`.
-
-The emacs client has a customization group "Dylan Lsp" which is a member of the
+The emacs client has a customization group "Lsp Dylan" which is a member of the
 "Programming / Tools" group, and has the following variables:
 
-* `dylan-lsp-exe-pathname`
-* `dylan-lsp-debug-server`
-* `dylan-lsp-debug-opendylan`
-* `dylan-lsp-log-pathname`
+* `lsp-dylan-exe-pathname`
+* `lsp-dylan-extra-command-line-options`
+* `lsp-dylan-log-pathname`
+* `lsp-dylan-open-dylan-release`
 
-These are documented in the customization interface within emacs.
+These are documented in the customization interface within emacs. Use `M-x
+customize-group` `lsp-dylan` to customize these variables.
 
 ## Visual Studio Code Usage
 

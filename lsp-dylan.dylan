@@ -40,19 +40,26 @@ define handler initialize
   log-debug("initialize: debug: %s, messages: %s, verbose: %s",
             *debug-mode*, *trace-messages*, *trace-verbose*);
 
-  // Save the workspace root (if provided) for later.
-  // rootUri takes precedence over rootPath if both are provided.
-  // TODO: can root-uri be something that's not a file:// URL?
-  let root-uri  = element(params, "rootUri", default: #f);
-  let root-path = element(params, "rootPath", default: #f);
-  session.root := find-workspace-root(root-uri, root-path);
-  if (session.root)
-    log-info("Found Dylan workspace root: %s", session.root);
-    working-directory() := session.root;
+  // The initialize message may be received multiple times and we don't want
+  // to change the working directory each time. Need to re-use the same _build
+  // directory to keep build times short. (Should this be ~== $session-active ?)
+  if (session.session-state == $session-preinit)
+    let root-uri  = element(params, "rootUri", default: #f);
+    let root-path = element(params, "rootPath", default: #f);
+    // TODO(cgay): Both rootPath and rootUri are deprecated in favor of
+    // workspaceFolders, but lsp-mode doesn't send workspaceFolders.
+    // Does VS Code send it?
+    session.session-root := find-workspace-root(root-uri, root-path);
+    if (session.session-root)
+      log-info("Found Dylan workspace root: %s", session.session-root);
+      working-directory() := session.session-root;
+    end;
+    log-info("Dylan LSP server working directory: %s", working-directory());
+    session.session-state := $session-active
   end;
-  log-info("Dylan LSP server working directory: %s", working-directory());
 
   // Return the capabilities of this server
+  // TODO(cgay): diagnosticProvider
   let capabilities = json("hoverProvider", #t,
                           "textDocumentSync", 1,
                           "declarationProvider", #t,
@@ -60,8 +67,6 @@ define handler initialize
                           "workspaceSymbolProvider", #t);
   let response-params = json("capabilities", capabilities);
   send-response(session, id, response-params);
-  // All OK to proceed.
-  session.state := $session-active;
 end handler;
 
 /* Handler for 'initialized' message.
@@ -106,14 +111,14 @@ define handler initialized
   end;
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
-  *server* := start-compiler(in-stream, out-stream);
+  *dylan-compiler* := start-compiler(in-stream, out-stream);
   test-open-project(session);
 end handler;
 
 define function test-open-project (session) => ()
   let project-name = find-project-name();
   log-debug("test-open-project: Found project name %=", project-name);
-  *project* := open-project(*server*, project-name);
+  *project* := open-project(*dylan-compiler*, project-name);
   log-debug("test-open-project: Project opened");
 
   // Let's see if we can find a module.
@@ -152,7 +157,8 @@ define function test-open-project (session) => ()
   else
     log-debug("test-open-project: project did't open");
   end if;
-  log-debug("test-open-project: Compiler started: %=, Project %=", *server*, *project*);
+  log-debug("test-open-project: Compiler started: %=, Project %=",
+            *dylan-compiler*, *project*);
   log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
 end function;
 
@@ -301,7 +307,7 @@ define function publish-diagnostics
     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
-  let context = server-context(*server*);
+  let context = server-context(*dylan-compiler*);
   let project = context-project(context);
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
@@ -611,7 +617,7 @@ end function;
 
 define handler exit
     (session :: <session>, id, params)
-  session.state := $session-killed;
+  session.session-state := $session-killed;
 end handler;
 
 // Feels like the top-level loop should be in the dylan-lsp-server library but
@@ -620,7 +626,7 @@ end handler;
 
 define function lsp-pre-init-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-preinit)
+  while (session.session-state == $session-preinit)
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     if (meth = "initialize" | meth = "exit")
@@ -636,7 +642,7 @@ end function;
 
 define function lsp-active-state-loop
     (session :: <session>) => ()
-  while (session.state == $session-active)
+  while (session.session-state == $session-active)
     log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     invoke-message-handler(meth, session, id, params);
@@ -647,7 +653,7 @@ end function;
 define function lsp-shutdown-state-loop
     (session :: <session>) => ()
   block (return)
-    while (session.state == $session-shutdown)
+    while (session.session-state == $session-shutdown)
       log-debug("lsp-shutdown-state-loop: waiting for message");
       let (meth, id, params) = receive-message(session);
       if (meth = "exit")
