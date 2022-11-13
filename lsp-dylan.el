@@ -19,19 +19,11 @@
    Must be an absolute pathname or the binary must be on your PATH."
   :type 'string)
 
-(defcustom lsp-dylan-debug-server-flag t
-  "Display extra debugging info from the server.
-   If true, the --debug-server option is passed to dylan-lsp-server, which
-   causes extra debug output from dylan-lsp-server in the *lsp-dylan* buffer.
-   This will also cause the server to crash with a backtrace, if a message
-   handler encounters an error."
-  :type 'boolean)
-
-(defcustom lsp-dylan-debug-opendylan-flag t
-  "Display extra debugging info from the compiler.
-   If true, the --debug-opendylan option is passed to dylan-lsp-server, which
-   causes extra debug output from Open Dylan in the *lsp-dylan* buffer."
-  :type 'boolean)
+(defcustom lsp-dylan-extra-command-line-options
+  '("--debug-opendylan" "--debug-server")
+  "Extra command-line options to pass to dylan-lsp-server.
+   See `dylan-lsp-server --help` for available options."
+  :type '(repeat string))
 
 (defcustom lsp-dylan-log-pathname nil
   "Pathname of the server's log file.
@@ -52,8 +44,7 @@
   "Generate the command line to start the LSP server"
   (append
    (list lsp-dylan-exe-pathname)
-   (when lsp-dylan-debug-server-flag '("--debug-server"))
-   (when lsp-dylan-debug-opendylan-flag '("--debug-opendylan"))
+   lsp-dylan-extra-command-line-options
    (when lsp-dylan-log-pathname (list "--log" lsp-dylan-log-pathname))))
 
 (defun lsp-dylan--infer-install-dir ()

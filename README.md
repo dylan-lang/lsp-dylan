@@ -85,8 +85,7 @@ The emacs client has a customization group "Lsp Dylan" which is a member of the
 "Programming / Tools" group, and has the following variables:
 
 * `lsp-dylan-exe-pathname`
-* `lsp-dylan-debug-server-flag`
-* `lsp-dylan-debug-opendylan-flag`
+* `lsp-dylan-extra-command-line-options`
 * `lsp-dylan-log-pathname`
 * `lsp-dylan-open-dylan-release`
 

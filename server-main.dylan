@@ -1,11 +1,11 @@
 Module: dylan-lsp-server
 
 define command-line <lsp-server-command-line> ()
-  option debug-server? :: <boolean> = #t, // default to #f eventually
+  option debug-server? :: <boolean> = #f,
     names: #("debug-server"),
     kind: <flag-option>,
     help: "Turn on debugging for the LSP server. [%default%]";
-  option debug-opendylan? :: <boolean> = #t, // default to #f eventually
+  option debug-opendylan? :: <boolean> = #f,
     names: #("debug-opendylan"),
     kind: <flag-option>,
     help: "Turn on debugging for Open Dylan. [%default%]";
@@ -37,6 +37,8 @@ define function main
     lsp-server-top-level(debug-server?: command.debug-server?,
                          debug-opendylan?: command.debug-opendylan?);
   exception (err :: <abort-command-error>)
+    format-out("Error: %s\n", err);
+    force-out();
     exit-application(exit-status(err));
   end;
 end function;
