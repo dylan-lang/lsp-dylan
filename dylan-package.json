@@ -4,6 +4,7 @@
     "version": "0.2.0",
     "dependencies": [
         "command-line-parser@3.1",
+        "dylan-tool@0.7",
         "json@1.0",
         "logging@2.1",
         "vscode-dylan@0.1",
