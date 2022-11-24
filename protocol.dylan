@@ -75,27 +75,27 @@ define constant show-log     = curry(window/show-message, $message-type-log);
 
 // Make a json Range object. bpos and epos are Position objects.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#range
-define function make-range (bpos, epos)
+define function make-lsp-range (bpos, epos)
   json("start", bpos, "end", epos)
 end function;
 
 // Make json for a Position object. Line and character are both zero-based.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function make-position (line, character)
+define function make-lsp-position (line, character)
   json("line", line, "character", character)
 end function;
 
-// Make json for a Location that's range.
+// Make json for a Location that's a range.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#location
-define function make-location (doc :: <string>, start-line, start-character, end-line, end-character)
-  let start-pos = make-position(start-line, start-character);
-  let end-pos = make-position(end-line, end-character);
-  json("uri", doc, "range", make-range(start-pos, end-pos))
+define function make-lsp-location (doc :: <string>, start-line, start-character, end-line, end-character)
+  let start-pos = make-lsp-position(start-line, start-character);
+  let end-pos = make-lsp-position(end-line, end-character);
+  json("uri", doc, "range", make-lsp-range(start-pos, end-pos))
 end function;
 
 // Decode a Position json object.  Note line and character are zero-based.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function decode-position
+define function decode-lsp-position
     (position) => (line :: <integer>, character :: <integer>)
   let line = position["line"];
   let character = position["character"];
@@ -104,7 +104,7 @@ end function;
 
 // Create a MarkupContent json object.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#markupContent
-define function make-markup (txt, #key markdown?)
+define function make-lsp-markup-content (txt, #key markdown?)
   let kind = if (markdown?)
                "markdown"
              else

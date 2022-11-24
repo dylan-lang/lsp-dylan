@@ -58,9 +58,13 @@ define function describe-symbol
   end
 end function;
 
-// Given a definition, make a list of all the places it is used
-// If include-self? is true, the list also includes the source record of the passed-in object
-// Returns a list of source records
+// Given a definition, make a list of all the places it is used.
+//
+// Parameters:
+//  object - the <definition-object> to look up.
+//  include-self? If true, the list also includes the source record of the passed-in object.
+// Returns:
+//  A sequence of source records.
 define function all-references
     (object :: <definition-object>, #key include-self?) => (references :: <sequence>)
   let clients = source-form-clients(*project*, object);

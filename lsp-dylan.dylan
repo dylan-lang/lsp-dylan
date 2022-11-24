@@ -174,7 +174,7 @@ define handler workspace/symbol
   // TODO this is only a dummy
   let query = params["query"];
   log-debug("Query: %s", query);
-  let range = make-range(make-position(0, 0), make-position(0, 5));
+  let range = make-lsp-range(make-lsp-position(0, 0), make-lsp-position(0, 5));
   let symbols = list(json("name", "a-name",
                           "kind", 13,
                           "location", json("range", range,
@@ -231,7 +231,7 @@ define handler textDocument/hover
                   let txt = describe-symbol(symbol, module: module);
                   let msg = format-hover-message(txt);
                   if (msg)
-                    json("contents", make-markup(msg, markdown?: #f));
+                    json("contents", make-lsp-markup-content(msg, markdown?: #f));
                   end;
                 end;
     send-response(session, id, hover | $null);
@@ -333,8 +333,8 @@ define function publish-diagnostics
       let eoff = loc.source-location-end-offset;
       let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
       let end-col = eoff.source-offset-column;
-      let range = make-range(make-position(start-line, start-col),
-                             make-position(end-line, end-col));
+      let range = make-lsp-range(make-lsp-position(start-line, start-col),
+                                 make-lsp-position(end-line, end-col));
       let severity
         = if (instance?(warning, <serious-compiler-warning-object>))
             $diagnostic-severity-error
@@ -395,8 +395,6 @@ define function apply-change
     show-error(session, "didChange doesn't support ranges yet");
   else
     log-debug("document replaced: %s", document.document-uri);
-    // This is too annoying on VS Code:
-    // show-info(session, "Document content replaced");
     document-lines(document) := split-lines(text);
   end;
 end function;
@@ -460,7 +458,7 @@ end handler;
 // Find references to a symbol
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references
 define handler textDocument/references
-  (session :: <session>, id, params)
+    (session :: <session>, id, params)
   let (doc, line, column) = textdocumentposition-to-position(params);
   let context = params["context"];
   let include-declaration = context["includeDeclaration"];
@@ -478,8 +476,8 @@ define handler textDocument/references
         let references = all-references(env-object, include-self?: include-declaration);
         if (~empty?(references))
           locations := map(method(reference)
-                               let source-location = get-location(reference);
-                               source-location-to-Location(source-location);
+                             let source-location = get-location(reference);
+                             source-location-to-lsp-location(source-location);
                            end, references);
         end;
       end;
@@ -563,25 +561,25 @@ define function lookup-symbol
   if (object)
     let defs = all-definitions(*project*, object);
     let locs = map(get-location, defs);
-    map(source-location-to-Location, locs);
+    map(source-location-to-lsp-location, locs);
   else
     #()
   end if;
 end function;
 
 // Convert a <source-location> to LSP's Location object
-define function source-location-to-Location
+define function source-location-to-lsp-location
     (source-location :: <source-location>) => (location :: <object>)
   let source-record = source-location.source-location-source-record;
   let absolute-path = source-record.source-record-location;
-  let (name, start-line) = source-line-location(source-record,
-                                                source-location.source-location-start-line);
-  let (name, end-line) = source-line-location(source-record,
-                                              source-location.source-location-end-line);
+  let (name, start-line)
+    = source-line-location(source-record, source-location.source-location-start-line);
+  let (name, end-line)
+    = source-line-location(source-record, source-location.source-location-end-line);
   let start-column = source-location.source-location-start-column;
   let end-column = source-location.source-location-end-column;
   let uri = locator-to-file-uri(absolute-path);
-  make-location(uri, start-line - 1, start-column, end-line - 1, end-column);
+  make-lsp-location(uri, start-line - 1, start-column, end-line - 1, end-column);
 end function;
 
 // Convert TextDocumentPositionParams to (doc, line, column)
@@ -592,7 +590,7 @@ define function textdocumentposition-to-position
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
-  let (line, column) = decode-position(position);
+  let (line, column) = decode-lsp-position(position);
   let doc = element($documents, uri, default: #f);
   values(doc, line, column)
 end function;
