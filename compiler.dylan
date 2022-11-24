@@ -58,30 +58,27 @@ define function describe-symbol
   end
 end function;
 
-define function symbol-locations
-    (symbol-name :: <string>, #key module) => (source-locations :: <sequence>)
-  let primary = get-environment-object(symbol-name, module: module);
-  if (primary)
-    let all = all-definitions(*project*, primary);
-    if (~empty?(all))
-      log-debug("symbol-locations:");
-    end;
-    map(method (definition)
-          let sloc = environment-object-source-location(*project*, definition);
-          let srec = sloc.source-location-source-record;
-          let start = srec.source-record-start-line; // e.g., end of file header
-          log-debug("  %s in %s:%s-%s",
-                    environment-object-display-name(*project*, definition, #f, qualify-names?: #f),
-                    srec.source-record-location,
-                    start + sloc.source-location-start-line,
-                    start + sloc.source-location-end-line);
-          sloc
-        end,
-        all)
+// Given a definition, make a list of all the places it is used.
+//
+// Parameters:
+//  object - the <definition-object> to look up.
+//  include-self? If true, the list also includes the source record of the passed-in object.
+// Returns:
+//  A sequence of source records.
+define function all-references
+    (object :: <definition-object>, #key include-self?) => (references :: <sequence>)
+  let clients = source-form-clients(*project*, object);
+  if (include-self?)
+    add(clients, object)
   else
-    log-debug("symbol-locations: %s not found in module %s", symbol-name, module);
-    #()
-  end
+    clients
+  end if;
+end function;
+
+// Given an environment-object, get its source-location
+define function get-location
+    (object :: <environment-object>) => (location :: <source-location>)
+  environment-object-source-location(*project*, object);
 end function;
 
 define function list-all-package-names ()
@@ -100,52 +97,6 @@ define function list-all-package-names ()
       do-directory(collect-project, reg-path);
     end;
   end;
-end function;
-
-define function one-off-debug ()
-  //list-all-package-names();
-  let in-stream = make(<string-stream>);
-  let out-stream = make(<string-stream>, direction: #"output");
-  let srv = start-compiler(in-stream, out-stream);
-  let project = open-project(srv, "testproject");
-  log-debug("Database: %=", project-compiler-database(project));
-
-  *project* := project;
-  *dylan-compiler* := srv;
-  let symbol-name = "zeor";
-  let library = project-library(project);
-  let module = find-module(project, "testproject", library: library);
-  let loc = environment-object-source-location(project, module).source-location-source-record;
-  let env = find-environment-object(project,
-                                    symbol-name,
-                                    library: library,
-                                    module: module);
-  log-debug("one-off-debug:\n  find-environment-object(%s, %s, library:%s, module:%s) => %=",
-            n(project),
-            n(symbol-name),
-            n(library),
-            n(module),
-            n(env));
-  let fp = as(<file-locator>, "/Users/peterhull/Projects/lsp-dylan/testproject/library.dylan");
-  let pfl = source-record-location(loc);
-//  fp := "testproject.dylan";
-//  fp := pfl;
-  let (m, l) = file-module(project, fp);
-  log-debug("one-off-debug:\n  1. %=\n  2. %=\n3. %=", n(fp), n(m), n(l));
-  let same? = pfl = fp;
-  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
-            locator-relative?(fp),
-            locator-relative?(pfl));
-  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
-            locator-base(fp),
-            locator-base(pfl));
-  log-debug("one-off-debug:\n  1. %=\n  2. %=\n",
-            locator-extension(fp),
-            locator-extension(pfl));
-  log-debug("one-off-debug:\n  1. %=\n  2. %=\n  3.%=\n",
-            locator-path(fp),
-            locator-path(pfl),
-            same?);
 end function;
 
 define method n (x :: <environment-object>)
