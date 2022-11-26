@@ -103,3 +103,42 @@ define function locator-to-file-uri
   concatenate("file://", as(<string>, loc))
 end function;
 
+
+//// Documents - For each file opened by the client we track an <lsp-document>
+//// object which keeps track of state for that document.
+
+// Maps URI strings to <document> objects.
+define constant $documents = make(<string-table>);
+
+// Represents one open file (given to us by textDocument/didOpen)
+define class <document> (<object>)
+  constant slot document-uri :: <string>,
+    required-init-keyword: uri:;
+  slot document-project :: false-or(<module-object>) = #f,
+    init-keyword: project:;
+  slot document-module :: false-or(<module-object>) = #f,
+    init-keyword: module:;
+  slot document-contents :: <string> = "",
+    init-keyword: contents:;
+  slot document-lines :: <sequence>,
+    required-init-keyword: lines:;
+end class;
+
+define function register-document
+    (uri :: <string>, contents :: <string>) => (doc :: <document>)
+  log-debug("register-document(%=)", uri);
+  find-document(uri)
+    | begin
+        let lines = split-lines(contents);
+        let doc = make(<document>, uri: uri, contents: contents, lines: lines);
+        $documents[uri] := doc
+      end
+end function;
+
+define function find-document
+    (uri :: <string>) => (doc :: false-or(<document>))
+  element($documents, uri, default: #f)
+end function;
+
+ignore(document-project, document-project-setter,
+       document-contents, document-contents-setter);

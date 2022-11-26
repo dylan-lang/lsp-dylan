@@ -250,7 +250,7 @@ define handler textDocument/didOpen
             uri, languageId, version, size(text));
   // Only bother about dylan files for now.
   if (languageId = "dylan")
-    register-file(uri, text);
+    register-document(uri, text);
   end if;
   if (*project*)
     let file = file-uri-to-locator(uri);
@@ -371,7 +371,7 @@ define handler textDocument/didChange
     (session :: <session>, id, params)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
-  let document = element($documents, uri, default: #f);
+  let document = find-document(uri);
   if (document)
     let changes = params["contentChanges"];
     for (change in changes)
@@ -388,7 +388,7 @@ end handler;
 // TextDocumentContentChangeEvent json object that has a "text" attribute and optional
 // "range" attribute. If there is no range then text contains the entire new document.
 define function apply-change
-    (session :: <session>, document :: <open-document>, change :: <string-table>) => ()
+    (session :: <session>, document :: <document>, change :: <string-table>) => ()
   let text = change["text"];
   let range = element(change, "range", default: #f);
   if (range)
@@ -486,22 +486,8 @@ define handler textDocument/references
   send-response(session, id, locations);
 end handler;
 
-// Maps URI strings to <open-document> objects.
-define constant $documents = make(<string-table>);
-
-// Represents one open file (given to us by textDocument/didOpen)
-define class <open-document> (<object>)
-  // The original URI string passed to us by the client to open this document.
-  constant slot document-uri :: <string>,
-    required-init-keyword: uri:;
-  slot document-module :: false-or(<module-object>) = #f,
-    init-keyword: module:;
-  slot document-lines :: <sequence>,
-    required-init-keyword: lines:;
-end class;
-
 define method ensure-document-module
-    (document :: <open-document>) => (module :: <module-object>)
+    (document :: <document>) => (module :: <module-object>)
   document.document-module |
     begin
       let file = file-uri-to-locator(document.document-uri);
@@ -509,13 +495,6 @@ define method ensure-document-module
       document.document-module := mod;
     end;
 end;
-
-define function register-file (uri, contents)
-  log-debug("register-file(%=)", uri);
-  let lines = split-lines(contents);
-  let doc = make(<open-document>, uri: uri, lines: lines);
-  $documents[uri] := doc;
-end function;
 
 // Characters that are part of the Dylan "name" BNF.
 define constant $dylan-name-characters
@@ -526,7 +505,7 @@ define constant $dylan-name-characters
 // the open paren following a function name, we should still find the name. If
 // there is no name at position, return #f.
 define function symbol-at-position
-    (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
+    (doc :: <document>, line, column) => (symbol :: false-or(<string>))
   if (line >= 0
         & line < size(doc.document-lines)
         & column >= 0
@@ -586,13 +565,12 @@ end function;
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams
 // line and column are zero-based
 define function textdocumentposition-to-position
-    (params :: <object>) => (doc :: false-or(<open-document>), line :: <integer>, column :: <integer>)
+    (params :: <object>) => (doc :: false-or(<document>), line :: <integer>, column :: <integer>)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
   let (line, column) = decode-lsp-position(position);
-  let doc = element($documents, uri, default: #f);
-  values(doc, line, column)
+  values(find-document(uri), line, column)
 end function;
 
 // Find the project name to open.
