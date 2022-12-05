@@ -5,7 +5,7 @@ DYLAN		?= $${HOME}/dylan
 install_bin     = $(DYLAN)/bin
 app_name	= dylan-lsp-server
 
-build: *.dylan
+build: *.dylan *.lid
 	dylan-compiler -build -unify $(app_name)
 
 install: build
