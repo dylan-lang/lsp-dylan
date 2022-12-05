@@ -9,10 +9,6 @@ Copyright: 2019
 
 
 define variable *dylan-compiler* :: false-or(<command-line-server>) = #f;
-define variable *project* = #f;
-define variable *module* = #f;
-define variable *library* = #f;
-define variable *project-name* = #f;
 
 define function start-compiler
     (input-stream, output-stream) => (server :: <command-line-server>)
@@ -25,12 +21,11 @@ define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
 end function run-compiler;
 
-// Ask the command line compiler to open a project.
-// Param: server - the command line server.
-// Param: name - either a library name or a lid file.
-// Returns: an instance of <project-object>
+// Ask the command line compiler to open a project. `name` may be a pathname to
+// a .lid, .hdp, or .exe file pathname or a library name. If a library name,
+// the registry is searched.
 define function open-project
-    (server, name :: <string>) => (project :: <object>)
+    (server :: <command-line-server>, name :: <string>) => (project :: <project-object>)
   let command = make-command(<open-project-command>,
                              server: server.server-context,
                              file: as(<file-locator>, name));
@@ -43,18 +38,13 @@ define function open-project
 end function;
 
 // Get a symbol's description from the compiler database.
-// This is used to implement the 'hover' function.
-//
-// Parameters:
-//  symbol-name - a <string>
-//  module - a <module-object> or #f
-// Returns:
-//  description - a <string> or #f
-define function describe-symbol
-    (symbol-name :: <string>, #key module) => (description :: false-or(<string>))
-  let env = get-environment-object(symbol-name, module: module);
-  if (env)
-    environment-object-description(*project*, env, module)
+define function symbol-description
+    (name :: <string>, doc :: <document>) => (description :: false-or(<string>))
+  let module = doc.ensure-document-module;
+  let project = doc.document-project;
+  let object = get-environment-object(project, name, module: module);
+  if (object)
+    environment-object-description(project, object, module)
   end
 end function;
 
@@ -65,20 +55,15 @@ end function;
 //  include-self? If true, the list also includes the source record of the passed-in object.
 // Returns:
 //  A sequence of source records.
-define function all-references
-    (object :: <definition-object>, #key include-self?) => (references :: <sequence>)
-  let clients = source-form-clients(*project*, object);
+define function object-references
+    (object :: <definition-object>, doc :: <document>, #key include-self?)
+ => (references :: <sequence>)
+  let clients = source-form-clients(doc.document-project, object);
   if (include-self?)
     add(clients, object)
   else
     clients
-  end if;
-end function;
-
-// Given an environment-object, get its source-location
-define function get-location
-    (object :: <environment-object>) => (location :: <source-location>)
-  environment-object-source-location(*project*, object);
+  end
 end function;
 
 define function list-all-package-names ()
@@ -99,31 +84,13 @@ define function list-all-package-names ()
   end;
 end function;
 
-define method n (x :: <environment-object>)
-  // for debugging!
-  let s = print-environment-object-to-string(*project*, x);
-  format-to-string("%s%s", object-class(x), s);
-end;
-
-define method n (x :: <string>)
-  format-to-string("\"%s\"", x)
-end;
-
-define method n (x :: <locator>)
-  format-to-string("locator:\"%s\"", as(<string>, x))
-end;
-
-define method n (x == #f)
-  "#f"
-end;
-
+// Let's get rid of this and just inline the calls to find-environment-object.
 define function get-environment-object
-    (symbol-name :: <string>, #key module) => (object :: false-or(<environment-object>))
-  let library = project-library(*project*);
-  log-debug("%s -> module is %s", symbol-name, n(module));
-  find-environment-object(*project*, symbol-name,
-                          library: library,
-                          module: module);
+    (project :: <project-object>, symbol-name :: <string>, #key module)
+ => (object :: false-or(<environment-object>))
+  find-environment-object(project, symbol-name,
+                          library: project-library(project),
+                          module: module)
 end function;
 
 // Given a definition, find all associated definitions.

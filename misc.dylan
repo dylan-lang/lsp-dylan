@@ -104,8 +104,10 @@ define function locator-to-file-uri
 end function;
 
 
-//// Documents - For each file opened by the client we track an <lsp-document>
-//// object which keeps track of state for that document.
+//// Documents
+
+// For each file opened by the client we track a <document> object which keeps
+// track of state for that document.
 
 // Maps URI strings to <document> objects.
 define constant $documents = make(<string-table>);
@@ -114,7 +116,7 @@ define constant $documents = make(<string-table>);
 define class <document> (<object>)
   constant slot document-uri :: <string>,
     required-init-keyword: uri:;
-  slot document-project :: false-or(<module-object>) = #f,
+  slot document-project :: false-or(<project-object>) = #f,
     init-keyword: project:;
   slot document-module :: false-or(<module-object>) = #f,
     init-keyword: module:;
@@ -135,10 +137,35 @@ define function register-document
       end
 end function;
 
-define function find-document
+define generic find-document
+    (id) => (doc :: false-or(<document>));
+
+define method find-document
     (uri :: <string>) => (doc :: false-or(<document>))
   element($documents, uri, default: #f)
+end method;
+
+define method find-document
+    (locator :: <file-locator>) => (doc :: false-or(<document>))
+  find-document(concatenate("file://", as(<string>, locator)))
+end method;
+
+define function document-locator
+    (doc :: <document>) => (locator :: <file-locator>)
+  file-uri-to-locator(doc.document-uri)
 end function;
 
-ignore(document-project, document-project-setter,
-       document-contents, document-contents-setter);
+// Search the open documents for a project matching `name`.
+define function find-open-project
+    (name :: <string>) => (p? :: false-or(<project-object>))
+  block (return)
+    for (doc in $documents)
+      let project = doc.document-project;
+      if (project & project.project-name = name)
+        return(project)
+      end
+    end
+  end
+end function;
+
+ignore(document-contents, document-contents-setter);
