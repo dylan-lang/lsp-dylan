@@ -7,9 +7,6 @@
 [submodule "ext/uncommon-dylan"]
 	path = ext/uncommon-dylan
 	url = https://github.com/cgay/uncommon-dylan
-[submodule "ext/pacman"]
-	path = ext/pacman
-	url = https://github.com/dylan-lang/pacman
 [submodule "ext/command-line-parser"]
 	path = ext/command-line-parser
 	url = https://github.com/dylan-lang/command-line-parser
