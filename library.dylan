@@ -2,6 +2,7 @@ Module: dylan-user
 
 define library lsp-dylan
   use build-system;
+  use collections, import: { table-extensions };
   use command-line-parser;
   use commands;
   use common-dylan;
@@ -63,6 +64,8 @@ define module lsp-dylan-impl
   use standard-io;
   use streams;
   use strings;
+  use table-extensions,
+    rename: { <case-insensitive-string-table> => <istring-table> };
   use threads;
   use workspaces,
     prefix: "ws/";

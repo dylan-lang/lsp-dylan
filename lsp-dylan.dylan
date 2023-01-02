@@ -415,6 +415,7 @@ define handler textDocument/definition
     let module = doc.ensure-document-module;
     let symbol = symbol-at-position(doc, line, column);
     if (symbol)
+      log-debug("textDocument/definition: looking up symbol %=", symbol);
       locations := lookup-symbol(project, symbol, module: module);
       if (empty?(locations))
         log-debug("textDocument/definition: symbol %=, not found", symbol);
@@ -466,6 +467,7 @@ define function ensure-document-module
   doc.document-module
     | begin
         let file = file-uri-to-locator(doc.document-uri);
+        log-debug("calling file-module(%=, %=)", doc.document-project, file);
         let mod = file-module(doc.document-project, file);
         doc.document-module := mod
       end
@@ -552,38 +554,154 @@ define function textdocumentposition-to-position
   values(find-document(uri), line, column)
 end function;
 
-// Find the names of the projects (i.e., libraries) to which `doc` belongs.
-// It's possible for one file to belong to multiple libraries, but should be
+// Find the names of the libraries to which `doc` belongs, if any.  It's
+// possible for one file to belong to multiple libraries, but that should be
 // rare. We let the caller decide how to handle that.
 define function find-project-names
     (session :: <session>, doc :: <document>) => (names :: <sequence>)
-  if (doc.document-project)
-    list(doc.document-project.project-name)
+  // TODO(cgay): cache the results. Use top-level registry directory mod time
+  // to invalidate the cache? Or recompute on failure to find a file, then give
+  // up?
+  let file-map = create-file-library-map(doc);
+  let pathname = as(<string>, doc.document-locator);
+  element(file-map, pathname, default: #())
+end function;
+
+// Create a mapping, pathname => library-names, for all libraries that can be
+// found via the registries. The pathnames are absolute pathname strings, and
+// have been resolved as with `resolve-locator`.
+//
+// When a user opens a .dylan file we want to open the library that file is
+// associated with, so that the compiler database can be accessed. For the
+// compiler to find the library associated with this file one of two things
+// must be true: (1) the library has a registry entry, or (2) the user
+// explicitly pointed the compiler at a .lid file. The latter is an important
+// edge case, mostly used by beginners.  So here we create a mapping for all
+// files in all libraries in all registries currently in use. This is done when
+// the LSP client is initialized. Case (2) is handled by textDocument/didOpen
+// if the document isn't found in this map.
+define function create-file-library-map
+    (doc :: <document>) => (map :: <table>)
+  let platform = target-platform-name();
+  let registries = find-registries(as(<string>, platform));
+  let file-map = if (platform = #"win32")
+                   make(<istring-table>)
+                 else
+                   make(<string-table>)
+                 end;
+  // So we don't process a "generic" LID when we've already processed a
+  // platform-specific LID.
+  let seen-libraries = make(<istring-table>);
+  // So we don't duplicate effort if multiple libraries (e.g., foo,
+  // foo-test-suite) are in the same workspace directory.
+  let seen-directories = make(file-map.object-class);
+  let prefix = "abstract://dylan";
+
+  // First scan the workspace containing `doc`.
+  let doc-dir = doc.document-locator.locator-directory;
+  update-file-library-map-for-workspace(doc-dir, file-map);
+  seen-directories[as(<string>, doc-dir)] := #t;
+
+  // Note that registries are in the correct order so that platform-specific
+  // library entries will be found first. Also, this code is using Open Dylan
+  // <registry>s, not dylan-tool <registry>s.
+  for (registry in registries)
+    // The registry-location is either the "generic" directory or a
+    // platform-specific registry directory.
+    if (file-exists?(registry.registry-location))
+      log-debug("create-file-library-map: directory: %s", registry.registry-location);
+      update-file-library-map-for-registry
+        (registry, file-map, seen-libraries, seen-directories);
+    end if; // registry directory exists
+  end for; // each registry
+  file-map
+end function;
+
+define function update-file-library-map-for-registry
+    (registry, file-map, seen-libraries, seen-directories) => ()
+  for (locator in //block ()
+                    directory-contents(registry.registry-location))
+                  //exception (err :: <error>)
+                    // One case where this will legitimately happen is for
+                    // ${OD}/corba/demos/chat/skeletons/chat-skeletons.hdp
+                    //log-warning("Error: %s", err);
+                    //#[]
+                  //end)
+    if (instance?(locator, <file-locator>))
+      let library-name = locator.locator-name; // do we need to use LID "library:" header?
+      if (~element(seen-libraries, library-name, default: #f))
+        // The registries should be in order so we only need to scan the
+        // library's directory the first time a registry points to it.
+        seen-libraries[library-name] := #t;
+        let lid-file = read-registry-file(registry, locator);
+        log-debug("update-file-library-map-for-registry: lid-file: %s", lid-file);
+        let ws-dir
+          = block ()
+              let ws = ws/load-workspace(directory: lid-file.locator-directory);
+              ws/workspace-directory(ws)
+            exception (err :: ws/<workspace-error>)
+              log-error("Error: %s", err);
+              lid-file.locator-directory
+            end;
+        let ws-dir-string = as(<string>, ws-dir);
+        if (element(seen-directories, ws-dir-string, default: #f))
+          log-debug("update-file-library-map-for-registry: skipping %s (seen)", ws-dir-string); // delete me
+        else
+          seen-directories[ws-dir-string] := #t;
+          update-file-library-map-for-workspace(ws-dir, file-map);
+        end;
+      end if; // haven't seen library
+    end if; // is file locator
+  end for; // each registry file
+end function;
+
+define function update-file-library-map-for-workspace
+    (ws-dir, file-map) => ()
+  log-debug("update-file-library-map-for-workspace: scanning %s", ws-dir); // delete me
+  let fmap = block ()
+               ws/source-file-map(ws-dir)
+             exception (err :: <error>)
+               log-warning("Error: %s", err);
+               make(<istring-table>)
+             end;
+  log-debug("  fmap size: %=", fmap.size); // delete me
+  // TODO(cgay): don't have quite the right interface with ws/source-file-map
+  // so for now copy its contents into the overall hash table.
+  for (libraries keyed-by pathname in fmap)
+    let libs = concatenate(element(file-map, pathname, default: #()), libraries);
+    log-debug("  %s => %=", pathname, libs);
+    file-map[pathname] := libs;
+  end;
+end function;
+
+// Read a registry file and return the .lid file it points to.
+// This code duplicates some of the logic in OD's find-library-locator...
+define function read-registry-file
+    (registry /* :: <registry> */, registry-file :: <file-locator>)
+ => (lid-file :: <file-locator>)
+  let line = with-open-file (stream = registry-file)
+               read-line(stream)
+             end;
+  let prefix = "abstract://dylan/";
+  if (~starts-with?(line, prefix))
+    as(<file-locator>, line)
   else
-    // Default specified in workspace file?
-    let workspace = block ()
-                      ws/load-workspace(directory: doc.document-locator.locator-directory)
-                    exception (ex :: ws/<workspace-error>)
-                      #f
-                    end;
-    let lib = workspace & ws/workspace-default-library-name(workspace);
-    if (lib)
-      log-debug("found dylan-tool workspace default library name %=", lib);
-      list(lib)
-    else
-      // Scan the file system
-      let file-map = ws/source-file-map(session.session-root);
-      let doc-path = as(<string>, doc.document-locator);
-      block (return)
-        for (libs keyed-by path in file-map)
-          if (doc-path = path)
-            return(libs)
-          end if;
-        end for;
-        #()
-      end block
-    end if
-  end if
+    // Make a file relative to the registry root directory.
+    let root = registry.registry-location.locator-directory.locator-directory;
+    let file = as(<posix-file-locator>,
+                  copy-sequence(line, start: prefix.size));
+    // Can't just merge them as that would produce a POSIX locator...
+    let file-parent = locator-directory(file);
+    let file-parent-path = file-parent & locator-path(file-parent);
+    log-debug("  root: %s", root);
+    log-debug("  file: %s", file);
+    log-debug("  file-parent-path: %s", file-parent-path);
+    file-locator(make(<directory-locator>,
+                      server: locator-server(root),
+                      path: concatenate(locator-path(root) | #[],
+                                        file-parent-path | #[])),
+                 locator-name(file))
+  end
 end function;
 
 define handler exit
