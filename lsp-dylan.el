@@ -49,12 +49,14 @@
 
 (defun lsp-dylan--infer-install-dir ()
   "Find the install dir relative to `dylan-compiler' on the path"
-  (let* ((compiler (or
-		    (executable-find "dylan-compiler")
-		    (error "Cannot find the Dylan install directory; dylan-compiler must be on the PATH")))
+  (let* ((compiler (file-truename
+                    (or
+		     (executable-find "dylan-compiler")
+		     (error "Cannot find the Dylan install directory; dylan-compiler must be on the PATH"))))
 	 (bindir (file-name-directory compiler))
 	 (bindirname (directory-file-name bindir))
 	 (installdir (file-name-directory bindirname)))
+    (message "lsp-dylan compiler: %s" compiler)
     installdir))
 
 (defun lsp-dylan--environment ()
