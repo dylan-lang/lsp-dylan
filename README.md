@@ -35,10 +35,7 @@ makes two attempts, in the following order:
    and there is only one "active" library, it uses that. Otherwise it fails.
 
 2. Search up in the directory structure for a `registry` directory and open the
-   library associated with the first `*.lid` file it finds there. (Note that it
-   currently removes the `.lid` suffix and assumes that a library by the same
-   name as the basename of the file can be opened via the registry. This should
-   eventually be fixed.)
+   library associated with the first `*.lid` file it finds there.
 
 Normally you shouldn't need to set any environment variables; everything is
 derived from the full pathname to the `dylan-compiler` executable, which must

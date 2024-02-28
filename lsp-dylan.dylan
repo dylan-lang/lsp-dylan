@@ -113,12 +113,11 @@ define handler initialized
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *dylan-compiler* := start-compiler(in-stream, out-stream);
-  test-open-project(session);
+  show-info(session, "Opened project %s", test-open-project(session));
 end handler;
 
-define function test-open-project (session) => ()
-  let project-name = find-project-name()
-    | error("No project found for file."); // TODO: 
+define function test-open-project (session) => (project-name :: <string>)
+  let project-name = find-project-name();
   log-debug("test-open-project: Found project name %=", project-name);
   *project* := open-project(*dylan-compiler*, project-name);
   log-debug("test-open-project: Project opened");
@@ -162,6 +161,7 @@ define function test-open-project (session) => ()
   log-debug("test-open-project: Compiler started: %=, Project %=",
             *dylan-compiler*, *project*);
   log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
+  project-name
 end function;
 
 define handler workspace/workspaceFolders
@@ -596,64 +596,35 @@ define function textdocumentposition-to-position
   values(doc, line, column)
 end function;
 
-// Find the project name to open.
-// Either it is set in the per-directory config (passed in from the client)
-// or we'll guess it is the only lid file in the workspace root.
-// If there is more than one lid file, that's an error, don't return
-// any project.
-// Returns: the name of a project
+// Find the project library name to open.  Either it is set in the per-directory config
+// (passed in from the client) or the workspace chooses a default library for us.
+// Returns the name of a project or signals an error.
 //
 // TODO(cgay): Really we need to search the LID files to find the file in the
 //   textDocument/didOpen message so we can figure out which library's project
 //   to open.
 // TODO(cgay): accept a locator argument so we know where to start, rather than
 //   using working-directory(). Also better for testing.
+// TODO(cgay): This always opens the project via the registry because when it's opened
+//   via the .lid file directly the database doesn't get opened for reasons as yet
+//   unknown.
 define function find-project-name
-    () => (name :: false-or(<string>))
+    () => (name :: <string>)
+  log-debug("find-project-name: working directory is %=", working-directory());
   if (*project-name*)
     // We've set it explicitly
-    log-debug("Project name explicitly:%s", *project-name*);
+    log-debug("Project name explicitly set: %s", *project-name*);
     *project-name*
-  elseif (ws/find-workspace-file(working-directory()))
-    // There's a dylan-tool workspace.
-    let workspace = ws/load-workspace();
+  else
+    let workspace = ws/load-workspace(); // May signal <workspace-error>
     let library-name = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
-      log-debug("found dylan-tool workspace default library name %=", library-name);
+      log-debug("Found dylan-tool workspace default library name %=", library-name);
       library-name
     else
-      log-debug("dylan-tool workspace has no default library configured.");
-      #f
-    end;
-  else
-    log-debug("no workspace file found starting in %s", working-directory());
-    // Use the first .lid file found in the workspace.
-    block(return)
-      local method return-lid (dir, name, type)
-              log-debug("return-lid(%=, %=, %=)", dir, name, type);
-              select (type)
-                #"file" =>
-                  let file = as(<file-locator>, name);
-                  if (locator-extension(file) = "lid")
-                    // TODO(cgay): This strips the extension so that the project will be
-                    // opened via the registry because when it's opened via the .lid file
-                    // directly the database doesn't get opened. Note that when opened by
-                    // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
-                    // via the registry it opens a <dfmc-lid-project-object>. Go figure.
-                    return(locator-base(file));
-                  end if;
-                #"directory" =>
-                  unless (member?(name, #[".git"], test: \=))
-                    do-directory(return-lid, subdirectory-locator(dir, name))
-                  end;
-                otherwise =>
-                  #f;
-              end;
-            end method;
-      do-directory(return-lid, working-directory());
-      log-debug("find-project-name found no LID files in %s", working-directory());
-      #f
-    end block
+      error("Dylan workspace has no default library; no .lid files created yet?"
+              " Check docs for how to configure a default project.");
+    end
   end if
 end function;
 
