@@ -51,7 +51,7 @@ the relevant registry directories to `OPEN_DYLAN_USER_REGISTRIES`. For example:
     export OPEN_DYLAN_USER_REGISTRIES=/project1/registry:/project2/registry
 
 See [Using Source
-Registries](https://opendylan.org/documentation/getting-started-cli/source-registries.html)
+Registries](https://opendylan.org/getting-started-cli/source-registries.html)
 for more.
 
 ## Emacs Usage
