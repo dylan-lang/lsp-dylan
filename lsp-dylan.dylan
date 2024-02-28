@@ -117,7 +117,8 @@ define handler initialized
 end handler;
 
 define function test-open-project (session) => ()
-  let project-name = find-project-name();
+  let project-name = find-project-name()
+    | error("No project found for file."); // TODO: 
   log-debug("test-open-project: Found project name %=", project-name);
   *project* := open-project(*dylan-compiler*, project-name);
   log-debug("test-open-project: Project opened");
@@ -626,20 +627,28 @@ define function find-project-name
     end;
   else
     log-debug("no workspace file found starting in %s", working-directory());
-    // Guess based on there being one .lid file in the workspace root
+    // Use the first .lid file found in the workspace.
     block(return)
       local method return-lid (dir, name, type)
-              if (type = #"file")
-                let file = as(<file-locator>, name);
-                if (locator-extension(file) = "lid")
-                  // TODO(cgay): This strips the extension so that the project will be
-                  // opened via the registry because when it's opened via the .lid file
-                  // directly the database doesn't get opened. Note that when opened by
-                  // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
-                  // via the registry it opens a <dfmc-lid-project-object>. Go figure.
-                  return(locator-base(file));
-                end if;
-              end if;
+              log-debug("return-lid(%=, %=, %=)", dir, name, type);
+              select (type)
+                #"file" =>
+                  let file = as(<file-locator>, name);
+                  if (locator-extension(file) = "lid")
+                    // TODO(cgay): This strips the extension so that the project will be
+                    // opened via the registry because when it's opened via the .lid file
+                    // directly the database doesn't get opened. Note that when opened by
+                    // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
+                    // via the registry it opens a <dfmc-lid-project-object>. Go figure.
+                    return(locator-base(file));
+                  end if;
+                #"directory" =>
+                  unless (member?(name, #[".git"], test: \=))
+                    do-directory(return-lid, subdirectory-locator(dir, name))
+                  end;
+                otherwise =>
+                  #f;
+              end;
             end method;
       do-directory(return-lid, working-directory());
       log-debug("find-project-name found no LID files in %s", working-directory());
