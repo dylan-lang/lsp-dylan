@@ -5,7 +5,7 @@ DYLAN		?= $${HOME}/dylan
 install_bin     = $(DYLAN)/bin
 app_name	= dylan-lsp-server
 
-build: sources/*.dylan
+build: sources/*.dylan sources/lsp-dylan.lid sources/server.lid
 	dylan-compiler -build -unify $(app_name)
 
 install: build
@@ -16,7 +16,7 @@ install-debug: build
 	mkdir -p $(install_bin)
 	cp _build/sbin/$(app_name).dbg $(install_bin)/$(app_name)
 
-test: sources/*-tests.dylan sources/test-suite*.dylan
+test: sources/*-tests.dylan sources/test-suite*.dylan sources/test-suite.lid
 	dylan-compiler -build lsp-dylan-test-suite
 	_build/bin/lsp-dylan-test-suite
 
