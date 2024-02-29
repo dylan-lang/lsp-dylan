@@ -6,11 +6,10 @@ Copyright: 2019
 // Handlers are roughly grouped together by type. For example, initialization,
 // textDocument/*, workspace/*, etc.
 
-// Handle the 'initialize' message.
-// Here we initialize logging/tracing and store the workspace root for later.
-// Here we return the 'static capabilities' of this server.
-// In the future we can register capabilities dynamically by sending messages
-// back to the client; this seems to be the preferred 'new' way to do things.
+// Initialize logging/tracing and store the workspace root for later.  Transmit
+// the static capabilities of this server.  In the future we can register
+// capabilities dynamically by sending messages back to the client; this seems
+// to be the preferred 'new' way to do things.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
 define handler initialize
     (session :: <session>, id, params)
@@ -633,105 +632,9 @@ define handler exit
   session.session-state := $session-killed;
 end handler;
 
-// Feels like the top-level loop should be in the dylan-lsp-server library but
-// I tried moving it and the amount of exporting needed seemed pointless at
-// this early stage of development. Maybe reconsider once the code settles.
-
-define function lsp-pre-init-state-loop
-    (session :: <session>) => ()
-  while (session.session-state == $session-preinit)
-    log-debug("lsp-pre-init-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    if (meth = "initialize" | meth = "exit")
-      invoke-message-handler(meth, session, id, params);
-    elseif (id)
-      // Respond to any Request with an error, and drop any Notifications.
-      // (Notifications have no id.)
-      send-error-response(session, id, $server-not-initialized);
-    end;
-    flush(session);
-  end while;
-end function;
-
-define function lsp-active-state-loop
-    (session :: <session>) => ()
-  while (session.session-state == $session-active)
-    log-debug("lsp-active-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    invoke-message-handler(meth, session, id, params);
-    flush(session);
-  end while;
-end function;
-
-define function lsp-shutdown-state-loop
-    (session :: <session>) => ()
-  block (return)
-    while (session.session-state == $session-shutdown)
-      log-debug("lsp-shutdown-state-loop: waiting for message");
-      let (meth, id, params) = receive-message(session);
-      if (meth = "exit")
-        log-debug("Dylan LSP server exiting");
-        return();
-      else
-        // Respond to any other request with an not-implemented error.
-        // Drop notifications, which are distinguished by not having an id.
-        log-debug("lsp-shutdown-state-loop: %s method %= is not yet implemented.",
-                  if (id) "Request" else "Notification" end,
-                  meth);
-        if (id)
-          send-error-response(session, id, $invalid-request);
-        end;
-      end;
-      flush(session);
-    end while;
-  end block;
-end function;
-
-define function lsp-server-top-level
-    (#key debug-server? = #t, debug-opendylan? = #t) => ()
-  *debug-mode* := debug-server?;
-  if (debug-opendylan?)
-    enable-od-environment-debug-logging();
-  end;
-  let session = make(<stdio-session>,
-                     input-stream: *standard-input*,
-                     output-stream: *standard-output*);
-  block ()
-    lsp-pre-init-state-loop(session);
-    lsp-active-state-loop(session);
-    lsp-shutdown-state-loop(session);
-  cleanup
-    log-debug("lsp-server-top-level exiting: bye!");
-  end;
-end function;
-
-// This makes it possible to modify the OD environment sources with debug-out
-// messages and see them in our local logs. debug-out et al are from the
-// simple-debugging:dylan module.
-define function enable-od-environment-debug-logging ()
-  debugging?() := #t;
-  // Added most of the sources/environment/ debug-out categories here. --cgay
-  debug-parts() := #(#"dfmc-environment-application",
-                     #"dfmc-environment-database",
-                     #"dfmc-environment-projects",
-                     #"environment-debugger",
-                     #"environment-profiler",
-                     #"environment-protocols",
-                     #"lsp",   // our own temp category. debug-out(#"lsp", ...)
-                     #"project-manager");
-  local method lsp-debug-out (fn :: <function>)
-          let (fmt, #rest args) = apply(values, fn());
-          // I wish we could log the "part" here, but debug-out drops it.
-          apply(log-debug, concatenate("debug-out: ", fmt), args)
-        end;
-  debug-out-function() := lsp-debug-out;
-  // Not yet...
-  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
-end function;
 
 ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
        dump, show-warning, show-log, show-error);
-
 
 // Local Variables:
 // indent-tabs-mode: nil

@@ -2,6 +2,15 @@ Module: lsp-dylan-impl
 Synopsis: The ubiquitous misc.
 
 
+// Server started with --debug command line option?
+define variable *debug-mode* :: <boolean> = #f;
+
+// LSP client asked to trace messages?
+define variable *trace-messages* :: <boolean> = #f;
+
+// LSP client asked to trace in more detail?
+define variable *trace-verbose* :: <boolean> = #f;
+
 // Maps handler name strings like "textDocument/definition" to the
 // corresponding handler function.
 define constant $lsp-message-handlers = make(<string-table>);

@@ -1,5 +1,5 @@
 Module: lsp-dylan-impl
-Synopsis: Communicaton with the Dylan command-line compiler
+Synopsis: Communicaton with the Open Dylan command-line compiler
 Author: Peter
 Copyright: 2019
 
@@ -23,7 +23,7 @@ end function;
 // Execute a single 'command-line' style command on the server
 define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
-end function run-compiler;
+end function;
 
 // Ask the command line compiler to open a project.
 // Param: server - the command line server.
@@ -160,3 +160,27 @@ define method all-definitions
     concatenate(vector(gf), methods) // Put gf first.
   end
 end method;
+
+// This makes it possible to modify the OD environment sources with debug-out
+// messages and see them in our local logs. debug-out et al are from the
+// simple-debugging:dylan module.
+define function enable-od-environment-debug-logging ()
+  debugging?() := #t;
+  // Added most of the sources/environment/ debug-out categories here. --cgay
+  debug-parts() := #(#"dfmc-environment-application",
+                     #"dfmc-environment-database",
+                     #"dfmc-environment-projects",
+                     #"environment-debugger",
+                     #"environment-profiler",
+                     #"environment-protocols",
+                     #"lsp",   // our own temp category. debug-out(#"lsp", ...)
+                     #"project-manager");
+  local method lsp-debug-out (fn :: <function>)
+          let (fmt, #rest args) = apply(values, fn());
+          // I wish we could log the "part" here, but debug-out drops it.
+          apply(log-debug, concatenate("debug-out: ", fmt), args)
+        end;
+  debug-out-function() := lsp-debug-out;
+  // Not yet...
+  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
+end function;
