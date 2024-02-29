@@ -8,10 +8,10 @@
         "json@1.0",
         "logging@2.1",
         "uncommon-dylan@0.2",
-        "vscode-dylan@0.1"
     ],
     "dev-dependencies": [
-        "testworks"
+        "testworks",
+        "vscode-dylan"
     ],
     "url": "https://github.com/dylan-lang/lsp-dylan"
 }
