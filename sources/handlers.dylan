@@ -127,21 +127,21 @@ define function test-open-project (session) => (project-name :: <string>)
   // project-compiler-database(*project*) returns #f and hence file-module
   // punts. Not sure who's responsible for opening the db and setting that slot
   // or why it has worked at all in the past.
-  let (m, l) = file-module(*project*, "library.dylan");
+  let (m, l) = od/file-module(*project*, "library.dylan");
   log-debug("test-open-project: m = %=, l = %=", m, l);
   log-debug("test-open-project: Try Module: %=, Library: %=",
-            m & environment-object-primitive-name(*project*, m),
-            l & environment-object-primitive-name(*project*, l));
+            m & od/environment-object-primitive-name(*project*, m),
+            l & od/environment-object-primitive-name(*project*, l));
 
-  log-debug("test-open-project: project-library = %=", project-library(*project*));
-  log-debug("test-open-project: project db = %=", project-compiler-database(*project*));
+  log-debug("test-open-project: project-library = %=", od/project-library(*project*));
+  log-debug("test-open-project: project db = %=", od/project-compiler-database(*project*));
 
   *module* := m;
   if (*project*)
     let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = open-project-compiler-database(*project*, warning-callback: warn);
+    let db = od/open-project-compiler-database(*project*, warning-callback: warn);
     log-debug("test-open-project: db = %=", db);
-    for (s in project-sources(*project*))
+    for (s in od/project-sources(*project*))
       let rl = source-record-location(s);
       log-debug("test-open-project: Source: %=, a %= in %=",
                 s,
@@ -149,7 +149,7 @@ define function test-open-project (session) => (project-name :: <string>)
                 as(<string>, rl));
     end;
     log-debug("test-open-project: listing project file libraries:");
-    do-project-file-libraries(method (l, r)
+    od/do-project-file-libraries(method (l, r)
                                 log-debug("test-open-project: Lib: %= Rec: %=", l, r);
                               end,
                               *project*,
@@ -159,7 +159,7 @@ define function test-open-project (session) => (project-name :: <string>)
   end if;
   log-debug("test-open-project: Compiler started: %=, Project %=",
             *dylan-compiler*, *project*);
-  log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
+  log-debug("test-open-project: Database: %=", od/project-compiler-database(*project*));
   project-name
 end function;
 
@@ -254,11 +254,11 @@ define handler textDocument/didOpen
   end if;
   if (*project*)
     let file = file-uri-to-locator(uri);
-    let (m, l) = file-module(*project*, file);
+    let (m, l) = od/file-module(*project*, file);
     log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
               as(<string>, file),
-              if (m) environment-object-primitive-name(*project*, m) end,
-              if (l) environment-object-primitive-name(*project*, l) end);
+              if (m) od/environment-object-primitive-name(*project*, m) end,
+              if (l) od/environment-object-primitive-name(*project*, l) end);
   else
     log-debug("textDocument/didOpen: no project found");
   end if;
@@ -276,16 +276,16 @@ define handler textDocument/didSave
   let project = find-project-name();
   log-debug("textDocument/didSave: File %s, project %=", uri, project);
   if (project)
-    let project-object = find-project(project);
+    let project-object = od/find-project(project);
     log-debug("textDocument/didSave: project = %=", project-object);
     if (project-object)
       let warnings = make(<stretchy-vector>);
-      build-project(project-object,
-                    link?: #f,
-                    warning-callback: curry(add!, warnings),
-                    error-handler: method (kind :: <symbol>, message :: <string>)
-                                     log-debug("%s: %s", kind, message);
-                                   end);
+      od/build-project(project-object,
+                       link?: #f,
+                       warning-callback: curry(add!, warnings),
+                       error-handler: method (kind :: <symbol>, message :: <string>)
+                                        log-debug("%s: %s", kind, message);
+                                      end);
       log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warning%s",
                 if (empty?(warnings)) "no" else warnings.size end,
@@ -309,7 +309,7 @@ define function publish-diagnostics
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
   let context = server-context(*dylan-compiler*);
-  let project = context-project(context);
+  let project = od/context-project(context);
   local
     method source-uri (loc)
       let sr = loc & loc.source-location-source-record;
@@ -336,7 +336,7 @@ define function publish-diagnostics
     end method;
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
-    let loc = environment-object-source-location(project, warning);
+    let loc = od/environment-object-source-location(project, warning);
     // TODO: what's the right way to present diagnostics that have no source location
     // in LSP?  If none, perhaps just associate them with the current file? lsp-mode
     // explodes if no source is given.
@@ -352,17 +352,17 @@ define function publish-diagnostics
       //   "tags" - e.g., deprecated or unused code
       //   "relatedInformation" - e.g., location of colliding definition
       let severity
-        = if (instance?(warning, <serious-compiler-warning-object>))
+        = if (instance?(warning, od/<serious-compiler-warning-object>))
             $diagnostic-severity-error
           else
             $diagnostic-severity-warning
           end;
       let diagnostic
         = json("uri", uri,
-               "range", source-range(environment-object-source-location(project, warning)),
+               "range", source-range(od/environment-object-source-location(project, warning)),
                "severity", severity,
                "source", "Open Dylan",
-               "message", compiler-warning-full-message(project, warning));
+               "message", od/compiler-warning-full-message(project, warning));
       add!(diagnostics, diagnostic);
     end for;
     send-notification(session, "textDocument/publishDiagnostics",
@@ -510,18 +510,18 @@ define class <open-document> (<object>)
   // The original URI string passed to us by the client to open this document.
   constant slot document-uri :: <string>,
     required-init-keyword: uri:;
-  slot document-module :: false-or(<module-object>) = #f,
+  slot document-module :: false-or(od/<module-object>) = #f,
     init-keyword: module:;
   slot document-lines :: <sequence>,
     required-init-keyword: lines:;
 end class;
 
 define method ensure-document-module
-    (document :: <open-document>) => (module :: <module-object>)
+    (document :: <open-document>) => (module :: od/<module-object>)
   document.document-module |
     begin
       let file = file-uri-to-locator(document.document-uri);
-      let (mod, lib) = file-module(*project*, file);
+      let (mod, lib) = od/file-module(*project*, file);
       document.document-module := mod;
     end;
 end;

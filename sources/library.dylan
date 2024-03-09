@@ -42,13 +42,6 @@ define module lsp-dylan-impl
   use command-lines;
   use commands;
   use common-dylan;
-  use dfmc-reader;
-  use environment-commands;
-  use environment-protocols,
-    exclude: { open-project,
-               application-filename,
-               application-arguments,
-               run-application};
   use file-source-records;
   use file-system;
   use format-out;
@@ -57,15 +50,18 @@ define module lsp-dylan-impl
   use locators;
   use logging;
   use operating-system;
-  use registry-projects;
   use simple-debugging;
-  use source-records;
   use standard-io;
   use streams;
   use strings;
   use threads;
-  use workspaces,
-    prefix: "ws/";
+  use workspaces, prefix: "ws/";
+
+  // Modules in Open Dylan proper (not those in opendylan/sources/lib) use the od/ prefix.
+  use dfmc-reader, prefix: "od/";
+  use environment-commands, prefix: "od/";
+  use environment-protocols, prefix: "od/";
+  use registry-projects, prefix: "od/";
 
   // For test suite.
   export
