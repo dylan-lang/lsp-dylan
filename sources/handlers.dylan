@@ -282,7 +282,10 @@ define handler textDocument/didSave
       let warnings = make(<stretchy-vector>);
       build-project(project-object,
                     link?: #f,
-                    warning-callback: curry(add!, warnings));
+                    warning-callback: curry(add!, warnings),
+                    error-handler: method (kind :: <symbol>, message :: <string>)
+                                     log-debug("%s: %s", kind, message);
+                                   end);
       log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warning%s",
                 if (empty?(warnings)) "no" else warnings.size end,
@@ -300,20 +303,45 @@ end handler;
 define variable *previous-warnings-by-uri* = #f;
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_publishDiagnostics
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
+// htt ps://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
 define function publish-diagnostics
     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
   let context = server-context(*dylan-compiler*);
   let project = context-project(context);
+  local
+    method source-uri (loc)
+      let sr = loc & loc.source-location-source-record;
+      if (sr)
+        locator-to-file-uri(sr.source-record-location)
+      end
+    end method,
+    method source-range (loc)
+      let sr = loc & loc.source-location-source-record;
+      if (~sr)
+        make-lsp-range(make-lsp-position(0, 0), make-lsp-position(0, 0))
+      else
+        let soff = loc.source-location-start-offset;
+        // sr.source-record-start-line is the number of Dylan Interchange Format
+        // header lines.
+        let start-line = soff.source-offset-line + sr.source-record-start-line - 1;
+        let start-col = soff.source-offset-column;
+        let eoff = loc.source-location-end-offset;
+        let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
+        let end-col = eoff.source-offset-column;
+        make-lsp-range(make-lsp-position(start-line, start-col),
+                       make-lsp-position(end-line, end-col));
+      end
+    end method;
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
     let loc = environment-object-source-location(project, warning);
-    let sr = loc.source-location-source-record;
-    let uri = locator-to-file-uri(sr.source-record-location);
-    warnings-by-uri[uri]
-      := add!(element(warnings-by-uri, uri, default: #[]), warning);
+    // TODO: what's the right way to present diagnostics that have no source location
+    // in LSP?  If none, perhaps just associate them with the current file? lsp-mode
+    // explodes if no source is given.
+    let uri = if (loc) source-uri(loc) else "/tmp/none" end;
+    warnings-by-uri[uri] := add!(element(warnings-by-uri, uri, default: #[]), warning);
   end;
   for (warnings keyed-by uri in warnings-by-uri)
     let diagnostics = make(<stretchy-vector>);
@@ -323,18 +351,6 @@ define function publish-diagnostics
       //   "codeDescription" - a URL with more info about the error
       //   "tags" - e.g., deprecated or unused code
       //   "relatedInformation" - e.g., location of colliding definition
-      let loc = environment-object-source-location(project, warning);
-      let sr = loc.source-location-source-record;
-      let soff = loc.source-location-start-offset;
-      // sr.source-record-start-line is the number of Dylan Interchange Format
-      // header lines.
-      let start-line = soff.source-offset-line + sr.source-record-start-line - 1;
-      let start-col = soff.source-offset-column;
-      let eoff = loc.source-location-end-offset;
-      let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
-      let end-col = eoff.source-offset-column;
-      let range = make-lsp-range(make-lsp-position(start-line, start-col),
-                                 make-lsp-position(end-line, end-col));
       let severity
         = if (instance?(warning, <serious-compiler-warning-object>))
             $diagnostic-severity-error
@@ -343,7 +359,7 @@ define function publish-diagnostics
           end;
       let diagnostic
         = json("uri", uri,
-               "range", range,
+               "range", source-range(environment-object-source-location(project, warning)),
                "severity", severity,
                "source", "Open Dylan",
                "message", compiler-warning-full-message(project, warning));
