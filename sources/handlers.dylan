@@ -95,8 +95,6 @@ define handler initialized
   show-info(session, "Dylan LSP server started.");
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
-
-  // Test code
   for (var in list("OPEN_DYLAN_RELEASE",
                    "OPEN_DYLAN_RELEASE_BUILD",
                    "OPEN_DYLAN_RELEASE_INSTALL",
@@ -112,56 +110,8 @@ define handler initialized
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *dylan-compiler* := start-compiler(in-stream, out-stream);
-  show-info(session, "Opened project %s", test-open-project(session));
+  show-info(session, "Opened project %s", lsp-open-project(session));
 end handler;
-
-define function test-open-project (session) => (project-name :: <string>)
-  let project-name = find-project-name();
-  log-debug("test-open-project: Found project name %=", project-name);
-  *project* := open-project(*dylan-compiler*, project-name);
-  log-debug("test-open-project: Project opened");
-
-  // Let's see if we can find a module.
-
-  // TODO(cgay): file-module is returning #f because (I believe)
-  // project-compiler-database(*project*) returns #f and hence file-module
-  // punts. Not sure who's responsible for opening the db and setting that slot
-  // or why it has worked at all in the past.
-  let (m, l) = od/file-module(*project*, "library.dylan");
-  log-debug("test-open-project: m = %=, l = %=", m, l);
-  log-debug("test-open-project: Try Module: %=, Library: %=",
-            m & od/environment-object-primitive-name(*project*, m),
-            l & od/environment-object-primitive-name(*project*, l));
-
-  log-debug("test-open-project: project-library = %=", od/project-library(*project*));
-  log-debug("test-open-project: project db = %=", od/project-compiler-database(*project*));
-
-  *module* := m;
-  if (*project*)
-    let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = od/open-project-compiler-database(*project*, warning-callback: warn);
-    log-debug("test-open-project: db = %=", db);
-    for (s in od/project-sources(*project*))
-      let rl = source-record-location(s);
-      log-debug("test-open-project: Source: %=, a %= in %=",
-                s,
-                object-class(s),
-                as(<string>, rl));
-    end;
-    log-debug("test-open-project: listing project file libraries:");
-    od/do-project-file-libraries(method (l, r)
-                                log-debug("test-open-project: Lib: %= Rec: %=", l, r);
-                              end,
-                              *project*,
-                              as(<file-locator>, "library.dylan"));
-  else
-    log-debug("test-open-project: project did't open");
-  end if;
-  log-debug("test-open-project: Compiler started: %=, Project %=",
-            *dylan-compiler*, *project*);
-  log-debug("test-open-project: Database: %=", od/project-compiler-database(*project*));
-  project-name
-end function;
 
 define handler workspace/workspaceFolders
     (session :: <session>, id, params)
@@ -198,7 +148,7 @@ define handler workspace/didChangeConfiguration
     *project-name* := project-name;
   end;
   //show-info(session, "The config was changed");
-  test-open-project(session);
+  lsp-open-project(session);
 end handler;
 
 // Format symbol description into a hover message.
@@ -305,7 +255,7 @@ define variable *previous-warnings-by-uri* = #f;
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_publishDiagnostics
 // htt ps://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
 define function publish-diagnostics
-    (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
+     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
   let context = server-context(*dylan-compiler*);

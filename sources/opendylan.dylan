@@ -25,21 +25,57 @@ define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
 end function;
 
-// Ask the command line compiler to open a project.
-// Param: server - the command line server.
-// Param: name - either a library name or a lid file.
-// Returns: an instance of <project-object>
-define function open-project
-    (server, name :: <string>) => (project :: <object>)
+define function lsp-open-project (session) => (project-name :: <string>)
+  let project-name = find-project-name();
+  log-debug("lsp-open-project: Found project name %=", project-name);
   let command = make-command(od/<open-project-command>,
-                             server: server.server-context,
-                             file: as(<file-locator>, name));
-  let project = execute-command(command);
-  log-debug("Result of opening %s is %=", name, project);
-  log-debug("Result of find %s is %=",
-            od/project-name(project),
-            od/find-project(od/project-name(project)));
-  project
+                             server: server-context(*dylan-compiler*),
+                             file: as(<file-locator>, project-name));
+  *project* := execute-command(command);
+  log-debug("lsp-open-project: Result of opening %= is %=", project-name, *project*);
+
+  // Let's see if we can find a module.
+
+  // TODO(cgay): file-module is returning #f because (I believe)
+  // project-compiler-database(*project*) returns #f and hence file-module
+  // punts. Not sure who's responsible for opening the db and setting that slot
+  // or why it has worked at all in the past.
+  // TODO(cgay): obviously using "library.dylan" is a terrible hack. We should
+  // be passing the actual file the client gave us.
+  let (m, l) = od/file-module(*project*, "library.dylan");
+  log-debug("lsp-open-project: m = %=, l = %=", m, l);
+  log-debug("lsp-open-project: Try Module: %=, Library: %=",
+            m & od/environment-object-primitive-name(*project*, m),
+            l & od/environment-object-primitive-name(*project*, l));
+
+  log-debug("lsp-open-project: project-library = %=", od/project-library(*project*));
+  log-debug("lsp-open-project: project db = %=", od/project-compiler-database(*project*));
+
+  *module* := m;
+  if (*project*)
+    let warn = curry(log-warning, "open-project-compiler-database: %=");
+    let db = od/open-project-compiler-database(*project*, warning-callback: warn);
+    log-debug("lsp-open-project: db = %=", db);
+    for (s in od/project-sources(*project*))
+      let rl = source-record-location(s);
+      log-debug("lsp-open-project: Source: %=, a %= in %=",
+                s,
+                object-class(s),
+                as(<string>, rl));
+    end;
+    log-debug("lsp-open-project: listing project file libraries:");
+    od/do-project-file-libraries(method (l, r)
+                                log-debug("lsp-open-project: Lib: %= Rec: %=", l, r);
+                              end,
+                              *project*,
+                              as(<file-locator>, "library.dylan"));
+  else
+    log-debug("lsp-open-project: project did't open");
+  end if;
+  log-debug("lsp-open-project: Compiler started: %=, Project %=",
+            *dylan-compiler*, *project*);
+  log-debug("lsp-open-project: Database: %=", od/project-compiler-database(*project*));
+  project-name
 end function;
 
 // Get a symbol's description from the compiler database.
