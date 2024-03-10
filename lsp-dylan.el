@@ -79,11 +79,14 @@
 (defun lsp-dylan--start ()
   "Do whatever we need to set up and register with emacs-lsp"
   (lsp-register-client
-   (make-lsp-client :new-connection (lsp-stdio-connection 'lsp-dylan--command)
-		    :environment-fn 'lsp-dylan--environment
-		    :major-modes '(dylan-mode)
-		    :initialized-fn 'lsp-dylan--initialized
-		    :server-id 'lsp-dylan)))
+   (make-lsp-client
+    ;; Note we wrap lsp-dylan--command in lambda so users can customize it at
+    ;; run time.
+    :new-connection (lsp-stdio-connection 'lsp-dylan--command)
+    :environment-fn 'lsp-dylan--environment
+    :major-modes '(dylan-mode)
+    :initialized-fn 'lsp-dylan--initialized
+    :server-id 'lsp-dylan)))
 
 (lsp-consistency-check lsp-dylan)
 (lsp-dylan--start)
