@@ -7,9 +7,9 @@ Copyright: 2020
 define variable $content-length = "Content-Length";
 
 define function print-json-to-string
-    (object, #rest args) => (json :: <string>)
+    (object, #key indent, sort-keys?) => (json :: <string>)
   with-output-to-string (s)
-    apply(print-json, object, s, args)
+    print-json(object, s, indent: indent, sort-keys?: sort-keys?)
   end
 end function;
 
@@ -68,35 +68,13 @@ define function json (#rest kvs) => (table :: <string-table>)
   table
 end function;
 
-define function dump(t :: <table>) => ()
-  log-debug("========== Table Dump ==========");
-  for (v keyed-by k in t)
-    log-debug("dump: %s-->%s (%s)", k, v, object-class(v));
-  end for;
-end;
-
-// Avoid logging the most verbose messages. Primarily the ones that contain the
-// text of an entire file.
-define constant $do-not-log-methods
-  = #["textDocument/didChange",
-      "textDocument/didOpen"];
-
 define method read-json-message (stream :: <stream>) => (json :: <object>)
   let hdrs = read-headers(stream);
   if (hdrs)
     let content-length = element(hdrs, $content-length, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
-    let json = parse-json(data);
-    if (*trace-messages*)
-      let meth = element(json, "method", default: #f);
-      if (meth & member?(meth, $do-not-log-methods, test: \=))
-        log-debug("read-json-message: received %= method, contents elided", meth);
-      else
-        log-debug("read-json-message: received %=", data);
-      end;
-    end;
-    json
+    parse-json(data)
   end
 end method read-json-message;
 
@@ -266,9 +244,6 @@ define method send-request
     session.session-callbacks[id] := callback;
   end if;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-request: %s", print-json-to-string(message));
-  end if;
 end method;
 
 define method send-response
@@ -276,9 +251,6 @@ define method send-response
   let message = make-message(id: id);
   message["result"] := result;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-response: %s", print-json-to-string(message));
-  end if;
 end method;
 
 define method send-error-response
@@ -294,9 +266,6 @@ define method send-error-response
   end if;
   message["error"] := params;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-error-response: %s", print-json-to-string(message));
-  end;
 end method;
 
 /*
@@ -314,16 +283,47 @@ define method send-raw-message
     (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
   if (*trace-messages*)
-    log-debug("send-raw-message: %s", str);
+    log-debug("Sent JSON:\n%s",
+              print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
   write-json-message(session.session-output-stream, str);
 end method;
 
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
-  read-json-message(session.session-input-stream)
+  let json = read-json-message(session.session-input-stream);
+  if (*trace-messages*)
+    log-debug("Received JSON:\n%s",
+              print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
+  end;
+  json
 end method;
 
 define method flush (session :: <stdio-session>) => ()
   force-output(session.session-output-stream);
 end method;
+
+// Replace the value of any attribute named "text" with a trimmed version of the string.
+// We rely on the fact that the attribute is always named "text" but I don't know this to
+// be true for all places where the full document is sent/received.
+define function reduce-verbosity
+    (data :: <string-table>) => (elided :: <string-table>)
+  iterate deep-copy (thing = data)
+    select (thing by instance?)
+      <table> =>
+        let t = make(thing.object-class);
+        for (v keyed-by k in thing)
+          t[k] := if (k = "text" & instance?(v, <string>) & v.size > 200)
+                    concatenate(copy-sequence(v, end: 200), "[...]")
+                  else
+                    deep-copy(v)
+                  end;
+        end;
+        t;
+      <sequence> =>
+        map(deep-copy, thing);
+      otherwise =>
+        thing;
+    end
+  end
+end function;

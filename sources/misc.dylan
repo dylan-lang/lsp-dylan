@@ -29,10 +29,6 @@ define function invoke-message-handler
     (name :: <string>, session :: <session>, id, params) => ()
   let fn = element($lsp-message-handlers, name, default: #f);
   if (fn)
-    if (*trace-messages*)
-      log-debug("Invoking %= with id %= and params %s",
-                name, id, print-json-to-string(params));
-    end;
     block ()
       fn(session, id, params);
     exception (err :: <error>, test: method (_) ~*debug-mode* end)
@@ -111,4 +107,3 @@ define function locator-to-file-uri
     (loc :: <locator>) => (uri :: <string>)
   concatenate("file://", as(<string>, loc))
 end function;
-

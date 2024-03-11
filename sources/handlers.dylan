@@ -600,7 +600,7 @@ end handler;
 
 
 ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
-       dump, show-warning, show-log, show-error);
+       show-warning, show-log, show-error);
 
 // Local Variables:
 // indent-tabs-mode: nil
