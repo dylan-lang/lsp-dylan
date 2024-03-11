@@ -69,15 +69,14 @@ define handler initialize
   send-response(session, id, response-params);
 end handler;
 
-/* Handler for 'initialized' message.
- *
- * Example: {"jsonrpc":"2.0","method":"initialized","params":{}}
- *
- * Here we will register the dynamic capabilities of the server with the client.
- * Note we don't do this yet, any capabilities are registered statically in the
- * 'initialize' message.
- * Here also we will start the compiler session.
- */
+// Handler for 'initialized' message.
+//
+// Example: {"jsonrpc":"2.0","method":"initialized","params":{}}
+//
+// Here we will register the dynamic capabilities of the server with the client.
+// Note we don't do this yet, any capabilities are registered statically in the
+// 'initialize' message.
+// Here also we will start the compiler session.
 define handler initialized
     (session :: <session>, id, params)
   /* Commented out because we don't need to do this (yet)

@@ -52,14 +52,11 @@ define function read-headers(stm)
   end if
 end function;
 
-/**
- * Make a string-table from a sequence of key value pairs.
- * This is just for convenience.
-*/
+// Make a <string-table> from a sequence of key value pairs.
+// This is just for convenience.
 define function json (#rest kvs) => (table :: <string-table>)
   let count :: <integer> = size(kvs);
-  let ts = ash(count, -1);
-  let table = make(<string-table>, size: ts);
+  let table = make(<string-table>, size: floor/(count, 2));
   for (i from 0 below count by 2)
     let key = kvs[i];
     let value = kvs[i + 1];
@@ -78,10 +75,9 @@ define method read-json-message (stream :: <stream>) => (json :: <object>)
   end
 end method read-json-message;
 
-/* Write a message with the base protocol headers
- * See: https://microsoft.github.io/language-server-protocol/specification#headerPart
- * We always assume the default encoding.
- */
+// Write a message with the base protocol headers
+// See: https://microsoft.github.io/language-server-protocol/specification#headerPart
+// We always assume the default encoding.
 define method write-json-message
     (stream :: <stream>, json :: <string>) => ()
   let content-length = size(json);
@@ -123,57 +119,43 @@ define generic send-raw-message
 define generic receive-raw-message
     (session :: <session>) => (message :: <object>);
 
-/*
- * Send a request message.
- * Optionally, register a callback to be called with the response
- * to this message.
- * The callback is a function as defined with 'define message-handler'.
- */
+// Send a request message.
+// Optionally, register a callback to be called with the response
+// to this message.
+// The callback is a function as defined with 'define message-handler'.
 define generic send-request
     (session :: <session>, method-name :: <string>, params :: <object>,
      #key callback) => ();
 
-/*
- * Send the response to a request with identifier id.
- * This applies to a successful request.
- */
+// Send the response to a request with identifier id.
+// This applies to a successful request.
 define generic send-response
     (session :: <session>, id :: <object>, result :: <object>) => ();
 
-/*
- * Send an error response to the request with identifier id.
- * Optionally include a human-readable error message and extra data
- */
+// Send an error response to the request with identifier id.
+// Optionally include a human-readable error message and extra data
 define generic send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message, error-data)
  => ();
 
-/*
- * Send an LSP notification-type message.
- * This has a method name but no ID because it isn't replied to
- */
+// Send an LSP notification-type message.
+// This has a method name but no ID because it isn't replied to
 define generic send-notification
     (session :: <session>, method-name :: <string>, params :: <object>) => ();
 
-/*
- * Get the next message.
- * If the message is a notification or request, return it
- * for processing. If it is a response to a request sent
- * by the server, look up the reponse callback and call it.
- */
+// Get the next message.
+// If the message is a notification or request, return it
+// for processing. If it is a response to a request sent
+// by the server, look up the reponse callback and call it.
 define generic receive-message
     (session :: <session>)
  => (method-name :: <string>, id :: <object>, params :: <object>);
 
-/*
- * Flush any pending messages through the connection.
- */
+// Flush any pending messages through the connection.
 define generic flush (session :: <session>) => ();
 
-/*
- * Make the 'skeleton' of a JSONRPC 2.0 message.
- */
+// Make the 'skeleton' of a JSONRPC 2.0 message.
 define function make-message (#key method-name, id)
   let msg = json("jsonrpc", "2.0");
   if (method-name)
@@ -198,11 +180,10 @@ define method send-notification
   end;
 end method;
 
-/** receive a request or response.
- * If it is a request, return the request method, id and params.
- * If it is a response (to a request we sent to the client), look
- * up the callback, call it and loop round for another message.
- */
+// Receive a request or response.
+// If it is a request, return the request method, id and params.
+// If it is a response (to a request we sent to the client), look
+// up the callback, call it and loop round for another message.
 define method receive-message
     (session :: <session>)
  => (method-name :: <string>, id, params);
@@ -268,10 +249,8 @@ define method send-error-response
   send-raw-message(session, message);
 end method;
 
-/*
- * A session communicating over standard in/out.
- * This is the only one implemented for now.
- */
+// A session communicating over standard in/out.
+// This is the only one implemented for now.
 define class <stdio-session> (<session>)
   constant slot session-input-stream :: <stream>,
     required-init-keyword: input-stream:;
