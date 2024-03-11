@@ -193,7 +193,7 @@ define method send-notification
     message["params"] := params;
   end;
   send-raw-message(session, message);
-  if (*trace-messages*)
+  if (*trace-messages?*)
     log-debug("send-notification: %=", method-name);
   end;
 end method;
@@ -217,7 +217,7 @@ define method receive-message
         return(method-name, id, params);
       else
         // Received a response
-        if (*trace-messages*)
+        if (*trace-messages?*)
           log-debug("receive-message: got id %=", id);
         end;
         let func = element(session.session-callbacks, id, default: #f);
@@ -282,7 +282,7 @@ end class;
 define method send-raw-message
     (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
-  if (*trace-messages*)
+  if (*trace-messages?*)
     log-debug("Sent JSON:\n%s",
               print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
@@ -292,7 +292,7 @@ end method;
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
   let json = read-json-message(session.session-input-stream);
-  if (*trace-messages*)
+  if (*trace-messages?*)
     log-debug("Received JSON:\n%s",
               print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
   end;

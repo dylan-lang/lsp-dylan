@@ -2,14 +2,16 @@ Module: lsp-dylan-impl
 Synopsis: The ubiquitous misc.
 
 
-// Server started with --debug command line option?
-define variable *debug-mode* :: <boolean> = #f;
+// Server started with --debug command line option? If true, let the server
+// crash and display a backtrace in the LSP stderr buffer instead of logging
+// the error.
+define variable *debug-mode?* :: <boolean> = #f;
 
 // LSP client asked to trace messages?
-define variable *trace-messages* :: <boolean> = #f;
+define variable *trace-messages?* :: <boolean> = #f;
 
-// LSP client asked to trace in more detail?
-define variable *trace-verbose* :: <boolean> = #f;
+// LSP client asked to trace in more detail? (Unused as of Mar 2024.)
+define variable *trace-verbose?* :: <boolean> = #f;
 
 // Maps handler name strings like "textDocument/definition" to the
 // corresponding handler function.
@@ -31,7 +33,7 @@ define function invoke-message-handler
   if (fn)
     block ()
       fn(session, id, params);
-    exception (err :: <error>, test: method (_) ~*debug-mode* end)
+    exception (err :: <error>, test: method (_) ~*debug-mode?* end)
       log-error("Error handling message %= (id=%s): %s",
                 name, id, err);
     end;

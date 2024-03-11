@@ -24,20 +24,20 @@ define handler initialize
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
     "off" =>
-      *trace-messages* := #f;
-      *trace-verbose* := #f;
+      *trace-messages?* := #f;
+      *trace-verbose?* := #f;
     "messages" =>
-      *trace-messages* := #t;
-      *trace-verbose* := #f;
+      *trace-messages?* := #t;
+      *trace-verbose?* := #f;
     "verbose" =>
-      *trace-messages* := #t;
-      *trace-verbose* := #t;
+      *trace-messages?* := #t;
+      *trace-verbose?* := #t;
     otherwise =>
       log-error("initialize: trace must be 'off', 'messages' or 'verbose', not %=",
                 trace);
   end select;
   log-debug("initialize: debug: %s, messages: %s, verbose: %s",
-            *debug-mode*, *trace-messages*, *trace-verbose*);
+            *debug-mode?*, *trace-messages?*, *trace-verbose?*);
 
   // The initialize message may be received multiple times and we don't want
   // to change the working directory each time. Need to re-use the same _build

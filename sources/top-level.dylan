@@ -5,7 +5,7 @@ Copyright: 2019
 
 define function lsp-server-top-level
     (#key debug-server? = #t, debug-opendylan? = #t) => ()
-  *debug-mode* := debug-server?;
+  *debug-mode?* := debug-server?;
   if (debug-opendylan?)
     enable-od-environment-debug-logging();
   end;
