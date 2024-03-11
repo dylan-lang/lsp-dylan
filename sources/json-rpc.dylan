@@ -3,8 +3,8 @@ Synopsis: Support routines for json-rpc
 Author: Peter
 Copyright: 2020
 
-// Headers for the JSONRPC call
-define variable $content-length = "Content-Length";
+
+define constant $content-length-header = "Content-Length";
 
 define function print-json-to-string
     (object, #key indent, sort-keys?) => (json :: <string>)
@@ -71,7 +71,7 @@ end function;
 define method read-json-message (stream :: <stream>) => (json :: <object>)
   let hdrs = read-headers(stream);
   if (hdrs)
-    let content-length = element(hdrs, $content-length, default: "0");
+    let content-length = element(hdrs, $content-length-header, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
     parse-json(data)
@@ -85,7 +85,7 @@ end method read-json-message;
 define method write-json-message
     (stream :: <stream>, json :: <string>) => ()
   let content-length = size(json);
-  write(stream, $content-length);
+  write(stream, $content-length-header);
   write(stream, ": ");
   write(stream, integer-to-string(content-length));
   write(stream, "\r\n\r\n");
