@@ -109,7 +109,6 @@ define handler initialized
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *dylan-compiler* := start-compiler(in-stream, out-stream);
-  show-info(session, "Opened project %s", lsp-open-project(session));
 end handler;
 
 define handler workspace/workspaceFolders
@@ -146,8 +145,6 @@ define handler workspace/didChangeConfiguration
   if (project-name & ~empty?(project-name))
     *project-name* := project-name;
   end;
-  //show-info(session, "The config was changed");
-  lsp-open-project(session);
 end handler;
 
 // Format symbol description into a hover message.
@@ -172,58 +169,72 @@ define handler textDocument/hover
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/hover: document %= not found", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     let hover = if (symbol)
                   let txt = describe-symbol(symbol, module: module);
                   let msg = format-hover-message(txt);
                   if (msg)
                     json("contents", make-lsp-markup-content(msg, markdown?: #f));
                   end;
+                else
+                  log-debug("textDocument/hover: No data found for %s (line: %=, column: %=)",
+                            doc, line, column);
                 end;
     send-response(session, id, hover | $null);
   end if;
 end handler;
 
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
 define handler textDocument/didOpen
     (session :: <session>, id, params)
-  // TODO this is only a dummy
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
-  let languageId = textDocument["languageId"];
-  let version = textDocument["version"];
-  let text = textDocument["text"];
-  log-debug("textDocument/didOpen: File %s of type %s, version %s, length %d",
-            uri, languageId, version, size(text));
-  // Only bother about dylan files for now.
-  if (languageId = "dylan")
-    register-file(uri, text);
-  end if;
-  if (*project*)
-    let file = file-uri-to-locator(uri);
-    let (m, l) = od/file-module(*project*, file);
-    log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
-              as(<string>, file),
-              if (m) od/environment-object-primitive-name(*project*, m) end,
-              if (l) od/environment-object-primitive-name(*project*, l) end);
+  if (textDocument["languageId"] ~= "dylan")
+    // Not sure how we would ever end up here, but...
+    show-info("Ignoring non Dylan file: %s", uri)
   else
-    log-debug("textDocument/didOpen: no project found");
+    let text = textDocument["text"];
+    register-file(uri, text);   // TODO(cgay): check if already registered first.
+    let file = file-uri-to-locator(uri);
+    if (*project*)
+      let (mod, lib) = od/file-module(*project*, file);
+      if (mod)
+        log-debug("textDocument/didOpen: %s belongs to project %s (module: %s)", file, *project*, mod);
+      else
+        log-debug("textDocument/didOpen: File %s not found in project %s.", file, *project*);
+        show-error(session, "File %s not found in project %s.", file, *project*);
+      end;
+    else
+      let (project, name) = lsp-open-project(session, file);
+      if (project)
+        *project* := project;
+        show-info(session, "Opened project %s", name);
+      elseif (name)
+        show-error(session, "Couldn't open project %=."
+                     " Try running `dylan update` and `dylan build -a`.", name);
+      else
+        show-error(session, "Couldn't determine which project to open."
+                     " Try running `dylan update` and `dylan build -a`.");
+        log-debug("textDocument/didOpen: No project found for %s", file);
+      end;
+    end if;
   end if;
 end handler;
 
-// A document was saved. For Emacs, this is called when M-x lsp is executed on
-// a new file. For now we don't care about the message at all, we just trigger
-// a compilation of the associated project (if any) unconditionally.
+// A document was saved. For Emacs, this is called when M-x lsp is executed on a new
+// file. For now we don't care about the message at all, we just trigger a compilation of
+// the associated project (if any) unconditionally.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
 define handler textDocument/didSave
     (session :: <session>, id, params)
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
-  // TODO(cgay): obviously we should be passing uri to find-project-name here.
-  let project = find-project-name();
-  log-debug("textDocument/didSave: File %s, project %=", uri, project);
+  let file = file-uri-to-locator(uri);
+  let project = find-project-name(file);
+  log-debug("textDocument/didSave: URI %s, project %=", uri, project);
   if (project)
     let project-object = od/find-project(project);
     log-debug("textDocument/didSave: project = %=", project-object);
@@ -241,11 +252,11 @@ define handler textDocument/didSave
                 if (warnings.size == 1) "" else "s" end);
       publish-diagnostics(session, uri, warnings);
     else
-      show-error("Project %s not found.", project);
+      show-error(session, "Project %s not found.", project);
     end;
   else
-    log-debug("handle-textDocument/didSave: project not found for %=", uri);
-    show-error("Project %s not found.", project);
+    log-debug("textDocument/didSave: project not found for %=", uri);
+    show-error(session, "Project %s not found.", project);
   end;
 end handler;
 
@@ -331,6 +342,11 @@ define function publish-diagnostics
   *previous-warnings-by-uri* := warnings-by-uri;
 end function;
 
+// I (cgay) am not sure what we're meant to do with these messages. Theoretically we
+// could use them to update OD's in-memory sources, do a build or just a parse, and
+// report diagnostics, but currently we only build and report diagnostics on /didSave.
+// Housel points out that a library-wide rebuild will often be too slow. But with the
+// right OD interfaces maybe....
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didChange
 define handler textDocument/didChange
     (session :: <session>, id, params)
@@ -345,7 +361,7 @@ define handler textDocument/didChange
   else
     // TODO: handlers should just signal an error of a certain type and
     // invoke-message-handler should DTRT.
-    show-error(session, format-to-string("Document not found on server: %s", uri));
+    show-error(session, "Document not found on server: %s", uri);
   end;
 end handler;
 
@@ -374,10 +390,11 @@ define handler textDocument/declaration
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/declaration: document not found: %=", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    // TODO: do we need both show-error and send-response?
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       let lookups = lookup-symbol(session, symbol, module: module);
       if (~empty?(lookups))
@@ -403,10 +420,10 @@ define handler textDocument/definition
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/definition: document not found: %=", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       locations := lookup-symbol(session, symbol, module: module);
       if (empty?(locations))
@@ -431,13 +448,15 @@ define handler textDocument/references
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/references: document %= not found", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       let env-object = get-environment-object(symbol, module: module);
-      if (env-object)
+      if (~env-object)
+        show-error(session, "No definition found for %=", symbol);
+      else
         let references = all-references(env-object, include-self?: include-declaration);
         if (~empty?(references))
           locations := map(method(reference)
@@ -459,21 +478,30 @@ define class <open-document> (<object>)
   // The original URI string passed to us by the client to open this document.
   constant slot document-uri :: <string>,
     required-init-keyword: uri:;
-  slot document-module :: false-or(od/<module-object>) = #f,
+  slot %document-module :: false-or(od/<module-object>) = #f,
     init-keyword: module:;
   slot document-lines :: <sequence>,
     required-init-keyword: lines:;
 end class;
 
-define method ensure-document-module
-    (document :: <open-document>) => (module :: od/<module-object>)
-  document.document-module |
-    begin
-      let file = file-uri-to-locator(document.document-uri);
-      let (mod, lib) = od/file-module(*project*, file);
-      document.document-module := mod;
-    end;
-end;
+define method print-object
+    (document :: <open-document>, stream :: <stream>) => ()
+  printing-object (document, stream)
+    print(document.document-uri, stream);
+  end;
+end method;
+
+
+define method document-module
+    (document :: <open-document>) => (module :: false-or(od/<module-object>))
+  document.%document-module
+    | if (*project*)
+        let file = file-uri-to-locator(document.document-uri);
+        let (mod, lib) = od/file-module(*project*, file);
+        mod & (document.%document-module := mod)
+      end
+end method;
+
 
 define function register-file (uri, contents)
   log-debug("register-file(%=)", uri);
@@ -567,27 +595,26 @@ end function;
 // TODO(cgay): Really we need to search the LID files to find the file in the
 //   textDocument/didOpen message so we can figure out which library's project
 //   to open.
-// TODO(cgay): accept a locator argument so we know where to start, rather than
-//   using working-directory(). Also better for testing.
 // TODO(cgay): This always opens the project via the registry because when it's opened
 //   via the .lid file directly the database doesn't get opened for reasons as yet
 //   unknown.
 define function find-project-name
-    () => (name :: <string>)
-  log-debug("find-project-name: working directory is %=", working-directory());
+    (file :: <file-locator>) => (name :: <string>)
   if (*project-name*)
-    // We've set it explicitly
-    log-debug("Project name explicitly set: %s", *project-name*);
+    log-debug("find-project-name: Using explicitly set project name: %s", *project-name*);
     *project-name*
   else
-    let workspace = ws/load-workspace(); // May signal <workspace-error>
-    let library-name = workspace & ws/workspace-default-library-name(workspace);
+    let workspace
+      = ws/load-workspace(directory: file.locator-directory); // May signal <workspace-error>
+    let library-name
+      = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
       log-debug("Found dylan-tool workspace default library name %=", library-name);
       library-name
     else
       error("Dylan workspace has no default library; no .lid files created yet?"
-              " Check docs for how to configure a default project.");
+              " See https://opendylan.org/package/dylan-tool/index.html#workspaces"
+              " for how to configure a default project.");
     end
   end if
 end function;

@@ -50,6 +50,7 @@ define module lsp-dylan-impl
   use locators;
   use logging;
   use operating-system;
+  use print;
   use simple-debugging;
   use standard-io;
   use streams;

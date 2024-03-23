@@ -8,9 +8,14 @@ Copyright: 2019
 // Copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
 
 
+define constant $open-dylan-user-registries = "OPEN_DYLAN_USER_REGISTRIES";
+
 define variable *dylan-compiler* :: false-or(<command-line-server>) = #f;
-define variable *project* = #f;
-define variable *module* = #f;
+
+// Currently we only support a single open project. This is #f until
+// textDocument/didOpen is first called.
+define variable *project* :: false-or(od/<project-object>) = #f;
+
 define variable *library* = #f;
 define variable *project-name* = #f;
 
@@ -25,38 +30,63 @@ define function run-compiler(server, string :: <string>) => ()
   execute-command-line(server, string);
 end function;
 
-define function lsp-open-project (session) => (project-name :: <string>)
-  let project-name = find-project-name();
+// Open the project containing `file`.
+define function lsp-open-project
+    (session, file :: <file-locator>)
+ => (project :: false-or(od/<project-object>), project-name :: false-or(<string>))
+  let project-name = find-project-name(file);
   log-debug("lsp-open-project: Found project name %=", project-name);
   let command = make-command(od/<open-project-command>,
                              server: server-context(*dylan-compiler*),
                              file: as(<file-locator>, project-name));
-  *project* := execute-command(command);
-  log-debug("lsp-open-project: Result of opening %= is %=", project-name, *project*);
 
-  // Let's see if we can find a module.
+  // Set OPEN_DYLAN_USER_REGISTRIES so we aren't depending on the working
+  // directory being correct.  Reset it to the original value when done so we
+  // don't keep appending the same value to it.  This obviously isn't thread
+  // safe; <open-project-command> needs a way to pass this through.
+  let original-user-registries = environment-variable($open-dylan-user-registries);
+  let project = #f;
+  block ()
+    let space = ws/load-workspace(directory: file.locator-directory);
+    // Make sure the file's workspace registry is first.
+    let regs = concatenate(list(as(<string>, ws/workspace-registry-directory(space))),
+                           if (original-user-registries)
+                             list(original-user-registries)
+                           else
+                             #()
+                           end);
+    let user-registries = join(regs, if ($os-name == #"win32") ";" else ":" end);
+    log-debug("lsp-open-project: Setting ODUR to %=", user-registries);
+    environment-variable($open-dylan-user-registries) := user-registries;
+    project := execute-command(command);
+    log-debug("lsp-open-project: Result of opening %= is %=", project-name, project);
+  cleanup
+    environment-variable($open-dylan-user-registries)
+      := original-user-registries;
+  exception (err :: <abort>)
+    // This is usually because no registry file was found. Why isn't a better
+    // error signaled?
+    log-debug("lsp-open-project: condition of class %= signaled", err);
+  end;
 
-  // TODO(cgay): file-module is returning #f because (I believe)
-  // project-compiler-database(*project*) returns #f and hence file-module
-  // punts. Not sure who's responsible for opening the db and setting that slot
-  // or why it has worked at all in the past.
-  // TODO(cgay): obviously using "library.dylan" is a terrible hack. We should
-  // be passing the actual file the client gave us.
-  let (m, l) = od/file-module(*project*, "library.dylan");
-  log-debug("lsp-open-project: m = %=, l = %=", m, l);
-  log-debug("lsp-open-project: Try Module: %=, Library: %=",
-            m & od/environment-object-primitive-name(*project*, m),
-            l & od/environment-object-primitive-name(*project*, l));
+  // Debugging only...
 
-  log-debug("lsp-open-project: project-library = %=", od/project-library(*project*));
-  log-debug("lsp-open-project: project db = %=", od/project-compiler-database(*project*));
+  if (~project)
+    log-debug("lsp-open-project: project did't open");
+  else
+    let (mod, lib) = project & od/file-module(project, file);
+    log-debug("lsp-open-project: mod = %=, lib = %=", mod, lib);
+    log-debug("lsp-open-project: Try Module: %=, Library: %=",
+              mod & od/environment-object-primitive-name(project, mod),
+              lib & od/environment-object-primitive-name(project, lib));
 
-  *module* := m;
-  if (*project*)
+    log-debug("lsp-open-project: project-library = %=", od/project-library(project));
+    log-debug("lsp-open-project: project db = %=", od/project-compiler-database(project));
+
     let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = od/open-project-compiler-database(*project*, warning-callback: warn);
+    let db = od/open-project-compiler-database(project, warning-callback: warn);
     log-debug("lsp-open-project: db = %=", db);
-    for (s in od/project-sources(*project*))
+    for (s in od/project-sources(project))
       let rl = source-record-location(s);
       log-debug("lsp-open-project: Source: %=, a %= in %=",
                 s,
@@ -65,17 +95,14 @@ define function lsp-open-project (session) => (project-name :: <string>)
     end;
     log-debug("lsp-open-project: listing project file libraries:");
     od/do-project-file-libraries(method (l, r)
-                                log-debug("lsp-open-project: Lib: %= Rec: %=", l, r);
-                              end,
-                              *project*,
-                              as(<file-locator>, "library.dylan"));
-  else
-    log-debug("lsp-open-project: project did't open");
+                                   log-debug("lsp-open-project: Lib: %= Rec: %=", l, r);
+                                 end,
+                                 project,
+                                 as(<file-locator>, "library.dylan"));
+    log-debug("lsp-open-project: Database: %=", od/project-compiler-database(project));
   end if;
-  log-debug("lsp-open-project: Compiler started: %=, Project %=",
-            *dylan-compiler*, *project*);
-  log-debug("lsp-open-project: Database: %=", od/project-compiler-database(*project*));
-  project-name
+
+  values(project, project-name)
 end function;
 
 // Get a symbol's description from the compiler database.
