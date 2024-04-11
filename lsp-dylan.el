@@ -19,10 +19,10 @@
    Must be an absolute pathname or the binary must be on your PATH."
   :type 'string)
 
-(defcustom lsp-dylan-extra-command-line-options
-  '("--debug-opendylan" "--debug-server")
-  "Extra command-line options to pass to dylan-lsp-server.
-   See `dylan-lsp-server --help` for available options."
+(defcustom lsp-dylan-extra-command-line-options '()
+  "List of command-line options to pass to dylan-lsp-server.
+   Possible values are \"--debug-opendylan\" and \"--debug-server\".
+   See `dylan-lsp-server --help` for more information on these options."
   :type '(repeat string))
 
 (defcustom lsp-dylan-log-pathname nil
