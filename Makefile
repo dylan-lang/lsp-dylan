@@ -10,15 +10,19 @@ build: sources/*.dylan sources/lsp-dylan.lid sources/server.lid
 
 install: build
 	mkdir -p $(install_bin)
-	cp _build/sbin/$(app_name) $(install_bin)/
-
-install-debug: build
-	mkdir -p $(install_bin)
-	cp _build/sbin/$(app_name).dbg $(install_bin)/$(app_name)
+	if [[ -d "_build" ]]; then                       \
+	  cp _build/sbin/$(app_name) $(install_bin)/;    \
+	else                                             \
+	  cp ../_build/sbin/$(app_name) $(install_bin)/; \
+	fi
 
 test: sources/*-tests.dylan sources/test-suite*.dylan sources/test-suite.lid
 	dylan build lsp-dylan-test-suite
-	_build/bin/lsp-dylan-test-suite
+	if [[ -d "_build" ]]; then             \
+	  _build/bin/lsp-dylan-test-suite ;    \
+	else                                   \
+	  ../_build/bin/lsp-dylan-test-suite ; \
+	fi
 
 clean:
 	rm -rf _build
