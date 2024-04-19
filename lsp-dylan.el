@@ -19,10 +19,10 @@
    Must be an absolute pathname or the binary must be on your PATH."
   :type 'string)
 
-(defcustom lsp-dylan-extra-command-line-options
-  '("--debug-opendylan" "--debug-server")
-  "Extra command-line options to pass to dylan-lsp-server.
-   See `dylan-lsp-server --help` for available options."
+(defcustom lsp-dylan-extra-command-line-options '()
+  "List of command-line options to pass to dylan-lsp-server.
+   Possible values are \"--debug-opendylan\" and \"--debug-server\".
+   See `dylan-lsp-server --help` for more information on these options."
   :type '(repeat string))
 
 (defcustom lsp-dylan-log-pathname nil
@@ -49,12 +49,14 @@
 
 (defun lsp-dylan--infer-install-dir ()
   "Find the install dir relative to `dylan-compiler' on the path"
-  (let* ((compiler (or
-		    (executable-find "dylan-compiler")
-		    (error "Cannot find the Dylan install directory; dylan-compiler must be on the PATH")))
+  (let* ((compiler (file-truename
+                    (or
+		     (executable-find "dylan-compiler")
+		     (error "Cannot find the Dylan install directory; dylan-compiler must be on the PATH"))))
 	 (bindir (file-name-directory compiler))
 	 (bindirname (directory-file-name bindir))
 	 (installdir (file-name-directory bindirname)))
+    (message "lsp-dylan compiler: %s" compiler)
     installdir))
 
 (defun lsp-dylan--environment ()
@@ -77,11 +79,14 @@
 (defun lsp-dylan--start ()
   "Do whatever we need to set up and register with emacs-lsp"
   (lsp-register-client
-   (make-lsp-client :new-connection (lsp-stdio-connection 'lsp-dylan--command)
-		    :environment-fn 'lsp-dylan--environment
-		    :major-modes '(dylan-mode)
-		    :initialized-fn 'lsp-dylan--initialized
-		    :server-id 'lsp-dylan)))
+   (make-lsp-client
+    ;; Note we wrap lsp-dylan--command in lambda so users can customize it at
+    ;; run time.
+    :new-connection (lsp-stdio-connection 'lsp-dylan--command)
+    :environment-fn 'lsp-dylan--environment
+    :major-modes '(dylan-mode)
+    :initialized-fn 'lsp-dylan--initialized
+    :server-id 'lsp-dylan)))
 
 (lsp-consistency-check lsp-dylan)
 (lsp-dylan--start)

@@ -6,11 +6,10 @@ Copyright: 2019
 // Handlers are roughly grouped together by type. For example, initialization,
 // textDocument/*, workspace/*, etc.
 
-// Handle the 'initialize' message.
-// Here we initialize logging/tracing and store the workspace root for later.
-// Here we return the 'static capabilities' of this server.
-// In the future we can register capabilities dynamically by sending messages
-// back to the client; this seems to be the preferred 'new' way to do things.
+// Initialize logging/tracing and store the workspace root for later.  Transmit
+// the static capabilities of this server.  In the future we can register
+// capabilities dynamically by sending messages back to the client; this seems
+// to be the preferred 'new' way to do things.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
 define handler initialize
     (session :: <session>, id, params)
@@ -25,20 +24,20 @@ define handler initialize
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
     "off" =>
-      *trace-messages* := #f;
-      *trace-verbose* := #f;
+      *trace-messages?* := #f;
+      *trace-verbose?* := #f;
     "messages" =>
-      *trace-messages* := #t;
-      *trace-verbose* := #f;
+      *trace-messages?* := #t;
+      *trace-verbose?* := #f;
     "verbose" =>
-      *trace-messages* := #t;
-      *trace-verbose* := #t;
+      *trace-messages?* := #t;
+      *trace-verbose?* := #t;
     otherwise =>
       log-error("initialize: trace must be 'off', 'messages' or 'verbose', not %=",
                 trace);
   end select;
   log-debug("initialize: debug: %s, messages: %s, verbose: %s",
-            *debug-mode*, *trace-messages*, *trace-verbose*);
+            *debug-mode?*, *trace-messages?*, *trace-verbose?*);
 
   // The initialize message may be received multiple times and we don't want
   // to change the working directory each time. Need to re-use the same _build
@@ -70,15 +69,14 @@ define handler initialize
   send-response(session, id, response-params);
 end handler;
 
-/* Handler for 'initialized' message.
- *
- * Example: {"jsonrpc":"2.0","method":"initialized","params":{}}
- *
- * Here we will register the dynamic capabilities of the server with the client.
- * Note we don't do this yet, any capabilities are registered statically in the
- * 'initialize' message.
- * Here also we will start the compiler session.
- */
+// Handler for 'initialized' message.
+//
+// Example: {"jsonrpc":"2.0","method":"initialized","params":{}}
+//
+// Here we will register the dynamic capabilities of the server with the client.
+// Note we don't do this yet, any capabilities are registered statically in the
+// 'initialize' message.
+// Here also we will start the compiler session.
 define handler initialized
     (session :: <session>, id, params)
   /* Commented out because we don't need to do this (yet)
@@ -96,8 +94,6 @@ define handler initialized
   show-info(session, "Dylan LSP server started.");
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
-
-  // Test code
   for (var in list("OPEN_DYLAN_RELEASE",
                    "OPEN_DYLAN_RELEASE_BUILD",
                    "OPEN_DYLAN_RELEASE_INSTALL",
@@ -113,55 +109,7 @@ define handler initialized
   send-request(session, "workspace/workspaceFolders", #f,
                callback: handle-workspace/workspaceFolders);
   *dylan-compiler* := start-compiler(in-stream, out-stream);
-  test-open-project(session);
 end handler;
-
-define function test-open-project (session) => ()
-  let project-name = find-project-name();
-  log-debug("test-open-project: Found project name %=", project-name);
-  *project* := open-project(*dylan-compiler*, project-name);
-  log-debug("test-open-project: Project opened");
-
-  // Let's see if we can find a module.
-
-  // TODO(cgay): file-module is returning #f because (I believe)
-  // project-compiler-database(*project*) returns #f and hence file-module
-  // punts. Not sure who's responsible for opening the db and setting that slot
-  // or why it has worked at all in the past.
-  let (m, l) = file-module(*project*, "library.dylan");
-  log-debug("test-open-project: m = %=, l = %=", m, l);
-  log-debug("test-open-project: Try Module: %=, Library: %=",
-            m & environment-object-primitive-name(*project*, m),
-            l & environment-object-primitive-name(*project*, l));
-
-  log-debug("test-open-project: project-library = %=", project-library(*project*));
-  log-debug("test-open-project: project db = %=", project-compiler-database(*project*));
-
-  *module* := m;
-  if (*project*)
-    let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = open-project-compiler-database(*project*, warning-callback: warn);
-    log-debug("test-open-project: db = %=", db);
-    for (s in project-sources(*project*))
-      let rl = source-record-location(s);
-      log-debug("test-open-project: Source: %=, a %= in %=",
-                s,
-                object-class(s),
-                as(<string>, rl));
-    end;
-    log-debug("test-open-project: listing project file libraries:");
-    do-project-file-libraries(method (l, r)
-                                log-debug("test-open-project: Lib: %= Rec: %=", l, r);
-                              end,
-                              *project*,
-                              as(<file-locator>, "library.dylan"));
-  else
-    log-debug("test-open-project: project did't open");
-  end if;
-  log-debug("test-open-project: Compiler started: %=, Project %=",
-            *dylan-compiler*, *project*);
-  log-debug("test-open-project: Database: %=", project-compiler-database(*project*));
-end function;
 
 define handler workspace/workspaceFolders
     (session :: <session>, id, params)
@@ -197,8 +145,6 @@ define handler workspace/didChangeConfiguration
   if (project-name & ~empty?(project-name))
     *project-name* := project-name;
   end;
-  //show-info(session, "The config was changed");
-  test-open-project(session);
 end handler;
 
 // Format symbol description into a hover message.
@@ -223,97 +169,139 @@ define handler textDocument/hover
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/hover: document %= not found", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     let hover = if (symbol)
                   let txt = describe-symbol(symbol, module: module);
                   let msg = format-hover-message(txt);
                   if (msg)
                     json("contents", make-lsp-markup-content(msg, markdown?: #f));
                   end;
+                else
+                  log-debug("textDocument/hover: No data found for %s (line: %=, column: %=)",
+                            doc, line, column);
                 end;
     send-response(session, id, hover | $null);
   end if;
 end handler;
 
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
 define handler textDocument/didOpen
     (session :: <session>, id, params)
-  // TODO this is only a dummy
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
-  let languageId = textDocument["languageId"];
-  let version = textDocument["version"];
-  let text = textDocument["text"];
-  log-debug("textDocument/didOpen: File %s of type %s, version %s, length %d",
-            uri, languageId, version, size(text));
-  // Only bother about dylan files for now.
-  if (languageId = "dylan")
-    register-file(uri, text);
-  end if;
-  if (*project*)
-    let file = file-uri-to-locator(uri);
-    let (m, l) = file-module(*project*, file);
-    log-debug("textDocument/didOpen: File: %= Module: %=, Library: %=",
-              as(<string>, file),
-              if (m) environment-object-primitive-name(*project*, m) end,
-              if (l) environment-object-primitive-name(*project*, l) end);
+  if (textDocument["languageId"] ~= "dylan")
+    // Not sure how we would ever end up here, but...
+    show-info("Ignoring non Dylan file: %s", uri)
   else
-    log-debug("textDocument/didOpen: no project found");
+    let text = textDocument["text"];
+    register-file(uri, text);   // TODO(cgay): check if already registered first.
+    let file = file-uri-to-locator(uri);
+    if (*project*)
+      let (mod, lib) = od/file-module(*project*, file);
+      if (mod)
+        log-debug("textDocument/didOpen: %s belongs to project %s (module: %s)", file, *project*, mod);
+      else
+        log-debug("textDocument/didOpen: File %s not found in project %s.", file, *project*);
+        show-error(session, "File %s not found in project %s.", file, *project*);
+      end;
+    else
+      let (project, name) = lsp-open-project(session, file);
+      if (project)
+        *project* := project;
+        show-info(session, "Opened project %s", name);
+      elseif (name)
+        show-error(session, "Couldn't open project %=."
+                     " Try running `dylan update` and `dylan build -a`.", name);
+      else
+        show-error(session, "Couldn't determine which project to open."
+                     " Try running `dylan update` and `dylan build -a`.");
+        log-debug("textDocument/didOpen: No project found for %s", file);
+      end;
+    end if;
   end if;
 end handler;
 
-// A document was saved. For Emacs, this is called when M-x lsp is executed on
-// a new file. For now we don't care about the message at all, we just trigger
-// a compilation of the associated project (if any) unconditionally.
+// A document was saved. For Emacs, this is called when M-x lsp is executed on a new
+// file. For now we don't care about the message at all, we just trigger a compilation of
+// the associated project (if any) unconditionally.
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
 define handler textDocument/didSave
     (session :: <session>, id, params)
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
-  // TODO(cgay): obviously we should be passing uri to find-project-name here.
-  let project = find-project-name();
-  log-debug("textDocument/didSave: File %s, project %=", uri, project);
+  let file = file-uri-to-locator(uri);
+  let project = find-project-name(file);
+  log-debug("textDocument/didSave: URI %s, project %=", uri, project);
   if (project)
-    let project-object = find-project(project);
+    let project-object = od/find-project(project);
     log-debug("textDocument/didSave: project = %=", project-object);
     if (project-object)
       let warnings = make(<stretchy-vector>);
-      build-project(project-object,
-                    link?: #f,
-                    warning-callback: curry(add!, warnings));
+      od/build-project(project-object,
+                       link?: #f,
+                       warning-callback: curry(add!, warnings),
+                       error-handler: method (kind :: <symbol>, message :: <string>)
+                                        log-debug("%s: %s", kind, message);
+                                      end);
       log-debug("textDocument/didSave: done building %=", project);
       show-info(session, "Build complete, %s warning%s",
                 if (empty?(warnings)) "no" else warnings.size end,
                 if (warnings.size == 1) "" else "s" end);
       publish-diagnostics(session, uri, warnings);
     else
-      show-error("Project %s not found.", project);
+      show-error(session, "Project %s not found.", project);
     end;
   else
-    log-debug("handle-textDocument/didSave: project not found for %=", uri);
-    show-error("Project %s not found.", project);
+    log-debug("textDocument/didSave: project not found for %=", uri);
+    show-error(session, "Project %s not found.", project);
   end;
 end handler;
 
 define variable *previous-warnings-by-uri* = #f;
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_publishDiagnostics
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
+// htt ps://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
 define function publish-diagnostics
-    (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
+     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
   let context = server-context(*dylan-compiler*);
-  let project = context-project(context);
+  let project = od/context-project(context);
+  local
+    method source-uri (loc)
+      let sr = loc & loc.source-location-source-record;
+      if (sr)
+        locator-to-file-uri(sr.source-record-location)
+      end
+    end method,
+    method source-range (loc)
+      let sr = loc & loc.source-location-source-record;
+      if (~sr)
+        make-lsp-range(make-lsp-position(0, 0), make-lsp-position(0, 0))
+      else
+        let soff = loc.source-location-start-offset;
+        // sr.source-record-start-line is the number of Dylan Interchange Format
+        // header lines.
+        let start-line = soff.source-offset-line + sr.source-record-start-line - 1;
+        let start-col = soff.source-offset-column;
+        let eoff = loc.source-location-end-offset;
+        let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
+        let end-col = eoff.source-offset-column;
+        make-lsp-range(make-lsp-position(start-line, start-col),
+                       make-lsp-position(end-line, end-col));
+      end
+    end method;
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
-    let loc = environment-object-source-location(project, warning);
-    let sr = loc.source-location-source-record;
-    let uri = locator-to-file-uri(sr.source-record-location);
-    warnings-by-uri[uri]
-      := add!(element(warnings-by-uri, uri, default: #[]), warning);
+    let loc = od/environment-object-source-location(project, warning);
+    // TODO: what's the right way to present diagnostics that have no source location
+    // in LSP?  If none, perhaps just associate them with the current file? lsp-mode
+    // explodes if no source is given.
+    let uri = if (loc) source-uri(loc) else "/tmp/none" end;
+    warnings-by-uri[uri] := add!(element(warnings-by-uri, uri, default: #[]), warning);
   end;
   for (warnings keyed-by uri in warnings-by-uri)
     let diagnostics = make(<stretchy-vector>);
@@ -323,30 +311,18 @@ define function publish-diagnostics
       //   "codeDescription" - a URL with more info about the error
       //   "tags" - e.g., deprecated or unused code
       //   "relatedInformation" - e.g., location of colliding definition
-      let loc = environment-object-source-location(project, warning);
-      let sr = loc.source-location-source-record;
-      let soff = loc.source-location-start-offset;
-      // sr.source-record-start-line is the number of Dylan Interchange Format
-      // header lines.
-      let start-line = soff.source-offset-line + sr.source-record-start-line - 1;
-      let start-col = soff.source-offset-column;
-      let eoff = loc.source-location-end-offset;
-      let end-line = eoff.source-offset-line + sr.source-record-start-line - 1;
-      let end-col = eoff.source-offset-column;
-      let range = make-lsp-range(make-lsp-position(start-line, start-col),
-                                 make-lsp-position(end-line, end-col));
       let severity
-        = if (instance?(warning, <serious-compiler-warning-object>))
+        = if (instance?(warning, od/<serious-compiler-warning-object>))
             $diagnostic-severity-error
           else
             $diagnostic-severity-warning
           end;
       let diagnostic
         = json("uri", uri,
-               "range", range,
+               "range", source-range(od/environment-object-source-location(project, warning)),
                "severity", severity,
                "source", "Open Dylan",
-               "message", compiler-warning-full-message(project, warning));
+               "message", od/compiler-warning-full-message(project, warning));
       add!(diagnostics, diagnostic);
     end for;
     send-notification(session, "textDocument/publishDiagnostics",
@@ -366,6 +342,11 @@ define function publish-diagnostics
   *previous-warnings-by-uri* := warnings-by-uri;
 end function;
 
+// I (cgay) am not sure what we're meant to do with these messages. Theoretically we
+// could use them to update OD's in-memory sources, do a build or just a parse, and
+// report diagnostics, but currently we only build and report diagnostics on /didSave.
+// Housel points out that a library-wide rebuild will often be too slow. But with the
+// right OD interfaces maybe....
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didChange
 define handler textDocument/didChange
     (session :: <session>, id, params)
@@ -380,7 +361,7 @@ define handler textDocument/didChange
   else
     // TODO: handlers should just signal an error of a certain type and
     // invoke-message-handler should DTRT.
-    show-error(session, format-to-string("Document not found on server: %s", uri));
+    show-error(session, "Document not found on server: %s", uri);
   end;
 end handler;
 
@@ -409,10 +390,11 @@ define handler textDocument/declaration
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/declaration: document not found: %=", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    // TODO: do we need both show-error and send-response?
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       let lookups = lookup-symbol(session, symbol, module: module);
       if (~empty?(lookups))
@@ -438,10 +420,10 @@ define handler textDocument/definition
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/definition: document not found: %=", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       locations := lookup-symbol(session, symbol, module: module);
       if (empty?(locations))
@@ -466,13 +448,15 @@ define handler textDocument/references
   if (~doc)
     let uri = params["textDocument"]["uri"];
     log-debug("textDocument/references: document %= not found", uri);
-    show-error(session, format-to-string("Document not found: %s", uri));
+    show-error(session, "Document not found: %s", uri);
   else
-    let module = doc.ensure-document-module;
-    let symbol = symbol-at-position(doc, line, column);
+    let module = doc.document-module;
+    let symbol = module & symbol-at-position(doc, line, column);
     if (symbol)
       let env-object = get-environment-object(symbol, module: module);
-      if (env-object)
+      if (~env-object)
+        show-error(session, "No definition found for %=", symbol);
+      else
         let references = all-references(env-object, include-self?: include-declaration);
         if (~empty?(references))
           locations := map(method(reference)
@@ -494,21 +478,30 @@ define class <open-document> (<object>)
   // The original URI string passed to us by the client to open this document.
   constant slot document-uri :: <string>,
     required-init-keyword: uri:;
-  slot document-module :: false-or(<module-object>) = #f,
+  slot %document-module :: false-or(od/<module-object>) = #f,
     init-keyword: module:;
   slot document-lines :: <sequence>,
     required-init-keyword: lines:;
 end class;
 
-define method ensure-document-module
-    (document :: <open-document>) => (module :: <module-object>)
-  document.document-module |
-    begin
-      let file = file-uri-to-locator(document.document-uri);
-      let (mod, lib) = file-module(*project*, file);
-      document.document-module := mod;
-    end;
-end;
+define method print-object
+    (document :: <open-document>, stream :: <stream>) => ()
+  printing-object (document, stream)
+    print(document.document-uri, stream);
+  end;
+end method;
+
+
+define method document-module
+    (document :: <open-document>) => (module :: false-or(od/<module-object>))
+  document.%document-module
+    | if (*project*)
+        let file = file-uri-to-locator(document.document-uri);
+        let (mod, lib) = od/file-module(*project*, file);
+        mod & (document.%document-module := mod)
+      end
+end method;
+
 
 define function register-file (uri, contents)
   log-debug("register-file(%=)", uri);
@@ -595,56 +588,34 @@ define function textdocumentposition-to-position
   values(doc, line, column)
 end function;
 
-// Find the project name to open.
-// Either it is set in the per-directory config (passed in from the client)
-// or we'll guess it is the only lid file in the workspace root.
-// If there is more than one lid file, that's an error, don't return
-// any project.
-// Returns: the name of a project
+// Find the project library name to open.  Either it is set in the per-directory config
+// (passed in from the client) or the workspace chooses a default library for us.
+// Returns the name of a project or signals an error.
 //
 // TODO(cgay): Really we need to search the LID files to find the file in the
 //   textDocument/didOpen message so we can figure out which library's project
 //   to open.
-// TODO(cgay): accept a locator argument so we know where to start, rather than
-//   using working-directory(). Also better for testing.
+// TODO(cgay): This always opens the project via the registry because when it's opened
+//   via the .lid file directly the database doesn't get opened for reasons as yet
+//   unknown.
 define function find-project-name
-    () => (name :: false-or(<string>))
+    (file :: <file-locator>) => (name :: <string>)
   if (*project-name*)
-    // We've set it explicitly
-    log-debug("Project name explicitly:%s", *project-name*);
+    log-debug("find-project-name: Using explicitly set project name: %s", *project-name*);
     *project-name*
-  elseif (ws/find-workspace-file(working-directory()))
-    // There's a dylan-tool workspace.
-    let workspace = ws/load-workspace();
-    let library-name = workspace & ws/workspace-default-library-name(workspace);
+  else
+    let workspace
+      = ws/load-workspace(directory: file.locator-directory); // May signal <workspace-error>
+    let library-name
+      = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
-      log-debug("found dylan-tool workspace default library name %=", library-name);
+      log-debug("Found dylan-tool workspace default library name %=", library-name);
       library-name
     else
-      log-debug("dylan-tool workspace has no default library configured.");
-      #f
-    end;
-  else
-    log-debug("no workspace file found starting in %s", working-directory());
-    // Guess based on there being one .lid file in the workspace root
-    block(return)
-      local method return-lid (dir, name, type)
-              if (type = #"file")
-                let file = as(<file-locator>, name);
-                if (locator-extension(file) = "lid")
-                  // TODO(cgay): This strips the extension so that the project will be
-                  // opened via the registry because when it's opened via the .lid file
-                  // directly the database doesn't get opened. Note that when opened by
-                  // .lid file it opens a <dfmc-hdp-project-object> whereas when opened
-                  // via the registry it opens a <dfmc-lid-project-object>. Go figure.
-                  return(locator-base(file));
-                end if;
-              end if;
-            end method;
-      do-directory(return-lid, working-directory());
-      log-debug("find-project-name found no LID files in %s", working-directory());
-      #f
-    end block
+      error("Dylan workspace has no default library; no .lid files created yet?"
+              " See https://opendylan.org/package/dylan-tool/index.html#workspaces"
+              " for how to configure a default project.");
+    end
   end if
 end function;
 
@@ -653,105 +624,9 @@ define handler exit
   session.session-state := $session-killed;
 end handler;
 
-// Feels like the top-level loop should be in the dylan-lsp-server library but
-// I tried moving it and the amount of exporting needed seemed pointless at
-// this early stage of development. Maybe reconsider once the code settles.
-
-define function lsp-pre-init-state-loop
-    (session :: <session>) => ()
-  while (session.session-state == $session-preinit)
-    log-debug("lsp-pre-init-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    if (meth = "initialize" | meth = "exit")
-      invoke-message-handler(meth, session, id, params);
-    elseif (id)
-      // Respond to any Request with an error, and drop any Notifications.
-      // (Notifications have no id.)
-      send-error-response(session, id, $server-not-initialized);
-    end;
-    flush(session);
-  end while;
-end function;
-
-define function lsp-active-state-loop
-    (session :: <session>) => ()
-  while (session.session-state == $session-active)
-    log-debug("lsp-active-state-loop: waiting for message");
-    let (meth, id, params) = receive-message(session);
-    invoke-message-handler(meth, session, id, params);
-    flush(session);
-  end while;
-end function;
-
-define function lsp-shutdown-state-loop
-    (session :: <session>) => ()
-  block (return)
-    while (session.session-state == $session-shutdown)
-      log-debug("lsp-shutdown-state-loop: waiting for message");
-      let (meth, id, params) = receive-message(session);
-      if (meth = "exit")
-        log-debug("Dylan LSP server exiting");
-        return();
-      else
-        // Respond to any other request with an not-implemented error.
-        // Drop notifications, which are distinguished by not having an id.
-        log-debug("lsp-shutdown-state-loop: %s method %= is not yet implemented.",
-                  if (id) "Request" else "Notification" end,
-                  meth);
-        if (id)
-          send-error-response(session, id, $invalid-request);
-        end;
-      end;
-      flush(session);
-    end while;
-  end block;
-end function;
-
-define function lsp-server-top-level
-    (#key debug-server? = #t, debug-opendylan? = #t) => ()
-  *debug-mode* := debug-server?;
-  if (debug-opendylan?)
-    enable-od-environment-debug-logging();
-  end;
-  let session = make(<stdio-session>,
-                     input-stream: *standard-input*,
-                     output-stream: *standard-output*);
-  block ()
-    lsp-pre-init-state-loop(session);
-    lsp-active-state-loop(session);
-    lsp-shutdown-state-loop(session);
-  cleanup
-    log-debug("lsp-server-top-level exiting: bye!");
-  end;
-end function;
-
-// This makes it possible to modify the OD environment sources with debug-out
-// messages and see them in our local logs. debug-out et al are from the
-// simple-debugging:dylan module.
-define function enable-od-environment-debug-logging ()
-  debugging?() := #t;
-  // Added most of the sources/environment/ debug-out categories here. --cgay
-  debug-parts() := #(#"dfmc-environment-application",
-                     #"dfmc-environment-database",
-                     #"dfmc-environment-projects",
-                     #"environment-debugger",
-                     #"environment-profiler",
-                     #"environment-protocols",
-                     #"lsp",   // our own temp category. debug-out(#"lsp", ...)
-                     #"project-manager");
-  local method lsp-debug-out (fn :: <function>)
-          let (fmt, #rest args) = apply(values, fn());
-          // I wish we could log the "part" here, but debug-out drops it.
-          apply(log-debug, concatenate("debug-out: ", fmt), args)
-        end;
-  debug-out-function() := lsp-debug-out;
-  // Not yet...
-  //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
-end function;
 
 ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
-       dump, show-warning, show-log, show-error);
-
+       show-warning, show-log, show-error);
 
 // Local Variables:
 // indent-tabs-mode: nil

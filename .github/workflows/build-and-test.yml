@@ -1,0 +1,51 @@
+name: build-and-test
+
+on:
+  push:
+    # all branches
+    paths-ignore:
+      - 'documentation/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'documentation/**'
+
+  # This enables the Run Workflow button on the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Open Dylan
+        uses: dylan-lang/install-opendylan@v3
+        with:
+          version: 2024.1
+          tag: v2024.1.0
+
+      - name: Install dependencies
+        run: dylan update
+
+      - name: Build test suite
+        run: dylan build lsp-dylan-test-suite
+
+      - name: Run test suite
+        run: |
+          _build/bin/lsp-dylan-test-suite --report surefire --report-file _build/lsp-dylan-tests.xml
+
+      - name: Publish Test Report
+        if: success() || failure()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: '**/_build/*-tests.xml'
+          detailed_summary: true
+          include_passed: true

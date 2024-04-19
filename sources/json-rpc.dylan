@@ -3,13 +3,13 @@ Synopsis: Support routines for json-rpc
 Author: Peter
 Copyright: 2020
 
-// Headers for the JSONRPC call
-define variable $content-length = "Content-Length";
+
+define constant $content-length-header = "Content-Length";
 
 define function print-json-to-string
-    (object, #rest args) => (json :: <string>)
+    (object, #key indent, sort-keys?) => (json :: <string>)
   with-output-to-string (s)
-    apply(print-json, object, s, args)
+    print-json(object, s, indent: indent, sort-keys?: sort-keys?)
   end
 end function;
 
@@ -52,14 +52,11 @@ define function read-headers(stm)
   end if
 end function;
 
-/**
- * Make a string-table from a sequence of key value pairs.
- * This is just for convenience.
-*/
+// Make a <string-table> from a sequence of key value pairs.
+// This is just for convenience.
 define function json (#rest kvs) => (table :: <string-table>)
   let count :: <integer> = size(kvs);
-  let ts = ash(count, -1);
-  let table = make(<string-table>, size: ts);
+  let table = make(<string-table>, size: floor/(count, 2));
   for (i from 0 below count by 2)
     let key = kvs[i];
     let value = kvs[i + 1];
@@ -68,46 +65,23 @@ define function json (#rest kvs) => (table :: <string-table>)
   table
 end function;
 
-define function dump(t :: <table>) => ()
-  log-debug("========== Table Dump ==========");
-  for (v keyed-by k in t)
-    log-debug("dump: %s-->%s (%s)", k, v, object-class(v));
-  end for;
-end;
-
-// Avoid logging the most verbose messages. Primarily the ones that contain the
-// text of an entire file.
-define constant $do-not-log-methods
-  = #["textDocument/didChange",
-      "textDocument/didOpen"];
-
 define method read-json-message (stream :: <stream>) => (json :: <object>)
   let hdrs = read-headers(stream);
   if (hdrs)
-    let content-length = element(hdrs, $content-length, default: "0");
+    let content-length = element(hdrs, $content-length-header, default: "0");
     let content-length = string-to-integer(content-length);
     let data = read(stream, content-length);
-    let json = parse-json(data);
-    if (*trace-messages*)
-      let meth = element(json, "method", default: #f);
-      if (meth & member?(meth, $do-not-log-methods, test: \=))
-        log-debug("read-json-message: received %= method, contents elided", meth);
-      else
-        log-debug("read-json-message: received %=", data);
-      end;
-    end;
-    json
+    parse-json(data)
   end
 end method read-json-message;
 
-/* Write a message with the base protocol headers
- * See: https://microsoft.github.io/language-server-protocol/specification#headerPart
- * We always assume the default encoding.
- */
+// Write a message with the base protocol headers
+// See: https://microsoft.github.io/language-server-protocol/specification#headerPart
+// We always assume the default encoding.
 define method write-json-message
     (stream :: <stream>, json :: <string>) => ()
   let content-length = size(json);
-  write(stream, $content-length);
+  write(stream, $content-length-header);
   write(stream, ": ");
   write(stream, integer-to-string(content-length));
   write(stream, "\r\n\r\n");
@@ -145,57 +119,43 @@ define generic send-raw-message
 define generic receive-raw-message
     (session :: <session>) => (message :: <object>);
 
-/*
- * Send a request message.
- * Optionally, register a callback to be called with the response
- * to this message.
- * The callback is a function as defined with 'define message-handler'.
- */
+// Send a request message.
+// Optionally, register a callback to be called with the response
+// to this message.
+// The callback is a function as defined with 'define message-handler'.
 define generic send-request
     (session :: <session>, method-name :: <string>, params :: <object>,
      #key callback) => ();
 
-/*
- * Send the response to a request with identifier id.
- * This applies to a successful request.
- */
+// Send the response to a request with identifier id.
+// This applies to a successful request.
 define generic send-response
     (session :: <session>, id :: <object>, result :: <object>) => ();
 
-/*
- * Send an error response to the request with identifier id.
- * Optionally include a human-readable error message and extra data
- */
+// Send an error response to the request with identifier id.
+// Optionally include a human-readable error message and extra data
 define generic send-error-response
     (session :: <session>, id :: <object>, error-code :: <integer>,
      #key error-message, error-data)
  => ();
 
-/*
- * Send an LSP notification-type message.
- * This has a method name but no ID because it isn't replied to
- */
+// Send an LSP notification-type message.
+// This has a method name but no ID because it isn't replied to
 define generic send-notification
     (session :: <session>, method-name :: <string>, params :: <object>) => ();
 
-/*
- * Get the next message.
- * If the message is a notification or request, return it
- * for processing. If it is a response to a request sent
- * by the server, look up the reponse callback and call it.
- */
+// Get the next message.
+// If the message is a notification or request, return it
+// for processing. If it is a response to a request sent
+// by the server, look up the reponse callback and call it.
 define generic receive-message
     (session :: <session>)
  => (method-name :: <string>, id :: <object>, params :: <object>);
 
-/*
- * Flush any pending messages through the connection.
- */
+// Flush any pending messages through the connection.
 define generic flush (session :: <session>) => ();
 
-/*
- * Make the 'skeleton' of a JSONRPC 2.0 message.
- */
+// Make the 'skeleton' of a JSONRPC 2.0 message.
 define function make-message (#key method-name, id)
   let msg = json("jsonrpc", "2.0");
   if (method-name)
@@ -215,16 +175,15 @@ define method send-notification
     message["params"] := params;
   end;
   send-raw-message(session, message);
-  if (*trace-messages*)
+  if (*trace-messages?*)
     log-debug("send-notification: %=", method-name);
   end;
 end method;
 
-/** receive a request or response.
- * If it is a request, return the request method, id and params.
- * If it is a response (to a request we sent to the client), look
- * up the callback, call it and loop round for another message.
- */
+// Receive a request or response.
+// If it is a request, return the request method, id and params.
+// If it is a response (to a request we sent to the client), look
+// up the callback, call it and loop round for another message.
 define method receive-message
     (session :: <session>)
  => (method-name :: <string>, id, params);
@@ -239,7 +198,7 @@ define method receive-message
         return(method-name, id, params);
       else
         // Received a response
-        if (*trace-messages*)
+        if (*trace-messages?*)
           log-debug("receive-message: got id %=", id);
         end;
         let func = element(session.session-callbacks, id, default: #f);
@@ -266,9 +225,6 @@ define method send-request
     session.session-callbacks[id] := callback;
   end if;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-request: %s", print-json-to-string(message));
-  end if;
 end method;
 
 define method send-response
@@ -276,9 +232,6 @@ define method send-response
   let message = make-message(id: id);
   message["result"] := result;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-response: %s", print-json-to-string(message));
-  end if;
 end method;
 
 define method send-error-response
@@ -294,15 +247,10 @@ define method send-error-response
   end if;
   message["error"] := params;
   send-raw-message(session, message);
-  if (*trace-messages*)
-    log-debug("send-error-response: %s", print-json-to-string(message));
-  end;
 end method;
 
-/*
- * A session communicating over standard in/out.
- * This is the only one implemented for now.
- */
+// A session communicating over standard in/out.
+// This is the only one implemented for now.
 define class <stdio-session> (<session>)
   constant slot session-input-stream :: <stream>,
     required-init-keyword: input-stream:;
@@ -313,17 +261,48 @@ end class;
 define method send-raw-message
     (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
-  if (*trace-messages*)
-    log-debug("send-raw-message: %s", str);
+  if (*trace-messages?*)
+    log-debug("Sent JSON:\n%s",
+              print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
   write-json-message(session.session-output-stream, str);
 end method;
 
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
-  read-json-message(session.session-input-stream)
+  let json = read-json-message(session.session-input-stream);
+  if (*trace-messages?*)
+    log-debug("Received JSON:\n%s",
+              print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
+  end;
+  json
 end method;
 
 define method flush (session :: <stdio-session>) => ()
   force-output(session.session-output-stream);
 end method;
+
+// Replace the value of any attribute named "text" with a trimmed version of the string.
+// We rely on the fact that the attribute is always named "text" but I don't know this to
+// be true for all places where the full document is sent/received.
+define function reduce-verbosity
+    (data :: <string-table>) => (elided :: <string-table>)
+  iterate deep-copy (thing = data)
+    select (thing by instance?)
+      <table> =>
+        let t = make(thing.object-class);
+        for (v keyed-by k in thing)
+          t[k] := if (k = "text" & instance?(v, <string>) & v.size > 200)
+                    concatenate(copy-sequence(v, end: 200), "[...]")
+                  else
+                    deep-copy(v)
+                  end;
+        end;
+        t;
+      <sequence> =>
+        map(deep-copy, thing);
+      otherwise =>
+        thing;
+    end
+  end
+end function;
