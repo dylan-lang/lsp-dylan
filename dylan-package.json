@@ -10,6 +10,7 @@
         "uncommon-dylan@0.2",
     ],
     "dev-dependencies": [
+        "sphinx-extensions",
         "testworks",
         "vscode-dylan"
     ],
