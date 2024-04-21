@@ -1,3 +1,0 @@
-CCFLAGS = -O0 -g ;
-
-include $(SYSTEM_BUILD_SCRIPTS)/$(TARGET_PLATFORM)-build.jam ;

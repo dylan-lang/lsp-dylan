@@ -1,0 +1,471 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" />
+
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.01.29 -->
+        <title>lsp-dylan documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="#"><div class="brand">lsp-dylan  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="#">
+  
+  
+  <span class="sidebar-brand-text">lsp-dylan  documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="dylan-language-server">
+<h1>Dylan Language Server<a class="headerlink" href="#dylan-language-server" title="Permalink to this heading">#</a></h1>
+<p>This is an implementation of the <a class="reference external" href="https://microsoft.github.io/language-server-protocol/">Language Server Protocol</a> for Dylan.</p>
+<div class="toctree-wrapper compound">
+</div>
+<section id="current-status">
+<h2>Current Status<a class="headerlink" href="#current-status" title="Permalink to this heading">#</a></h2>
+<p>As of 2024-04-19, the server implements</p>
+<ul class="simple">
+<li><p>Jump to declaration</p></li>
+<li><p>Jump to definition</p></li>
+<li><p>Diagnostics (i.e., compiler warnings)</p></li>
+<li><p>Hover (i.e., argument lists)</p></li>
+</ul>
+<p>When applied to a symbol which is bound to a generic function, “jump to
+definition” will show a list containing the generic function and its specific
+methods, whereas “jump to declaration” will jump straight to the generic
+function.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
+<ol class="arabic">
+<li><p>First install <a class="reference external" href="https://opendylan.org">Open Dylan</a> 2023.1 or newer.</p></li>
+<li><p>Clone the <a class="reference external" href="https://github.com/dylan-lang/lsp-dylan">lsp-dylan repository</a>:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/dylan-lang/lsp-dylan
+</pre></div>
+</div>
+</li>
+<li><p>Update the workspace so that dependencies are installed and the registry is
+created:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>lsp-dylan
+$<span class="w"> </span>dylan<span class="w"> </span>update
+</pre></div>
+</div>
+</li>
+<li><p>Build the <code class="docutils literal notranslate"><span class="pre">dylan-lsp-server</span></code> binary.  This will install the binary in
+<code class="docutils literal notranslate"><span class="pre">${DYLAN}/bin</span></code>. If <span class="target" id="index-0"></span><code class="xref std std-envvar docutils literal notranslate"><span class="pre">DYLAN</span></code> is not defined it defaults to
+<code class="docutils literal notranslate"><span class="pre">${HOME}/dylan</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>make<span class="w"> </span>install
+</pre></div>
+</div>
+<p>or just run these commands:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>dylan<span class="w"> </span>build<span class="w"> </span>--unify<span class="w"> </span>dylan-lsp-server
+$<span class="w"> </span>cp<span class="w"> </span>_build/sbin/dylan-lsp-server<span class="w"> </span>/usr/local/bin/
+</pre></div>
+</div>
+</li>
+<li><p>Make sure <code class="docutils literal notranslate"><span class="pre">dylan-lsp-server</span></code> is on your <span class="target" id="index-1"></span><code class="xref std std-envvar docutils literal notranslate"><span class="pre">PATH</span></code>.</p></li>
+</ol>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h2>
+<p>The LSP server needs to be able to open a project (that is, a Dylan library)
+associated with the file you’re editing when you turn on LSP in your editor. It
+assumes you are using a <a class="reference external" href="https://github.com/dylan-lang/dylan-tool">dylan-tool</a> workspace and searches for a
+project to open as follows:</p>
+<ol class="arabic simple">
+<li><p>If there is a <code class="file docutils literal notranslate"><span class="pre">workspace.json</span></code> file and that file has a
+<cite>“default-library”</cite> property, the specified library is opened.</p></li>
+<li><p>It uses the <strong class="program">dylan</strong> tool to choose a library defined in the
+workspace. This is <a class="reference external" href="https://github.com/dylan-lang/dylan-tool/blob/292b7bf761745c9fa810511c9888f802dd787011/sources/workspaces/workspaces.dylan#L151">generally</a>
+the test suite library, if one exists; otherwise it chooses a project
+arbitrarily.</p></li>
+</ol>
+<p>Normally you shouldn’t need to set any environment variables; everything is
+derived from the full pathname to the <strong class="program">dylan-compiler</strong> executable,
+which must be on your <span class="target" id="index-2"></span><code class="xref std std-envvar docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
+<p>When you open each new file in your editor the LSP client may try to start a
+new project if the file isn’t part of the same <strong class="program">dylan</strong> workspace
+directory. If you want the client to use just one project, use a <a class="reference external" href="https://opendylan.org/package/dylan-tool/index.html#workspaces">multi-package
+workspace</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Always run <code class="docutils literal notranslate"><span class="pre">dylan</span> <span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">dylan</span> <span class="pre">build</span> <span class="pre">-a</span></code> in your workspace
+<strong>before</strong> starting the LSP server, or <strong class="program">dylan-lsp-server</strong>
+may not be able to open your project. (This requirement will be
+removed in a future release.)</p>
+</div>
+<section id="emacs-usage">
+<h3>Emacs Usage<a class="headerlink" href="#emacs-usage" title="Permalink to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Make sure the <strong class="program">dylan-lsp-server</strong> executable is on your
+<span class="target" id="index-3"></span><code class="xref std std-envvar docutils literal notranslate"><span class="pre">PATH</span></code>, or customize the <code class="docutils literal notranslate"><span class="pre">lsp-dylan-exe-pathname</span></code> elisp variable. See
+below for more on customization.</p></li>
+<li><p>Install <a class="reference external" href="https://github.com/emacs-lsp/lsp-mode">lsp-mode</a> and <a class="reference external" href="https://github.com/dylan-lang/dylan-emacs-support">dylan-mode</a>. Both of these are
+available from MELPA.</p></li>
+<li><p>When you jump to another <code class="file docutils literal notranslate"><span class="pre">.dylan</span></code> file, that file does not
+automatically have LSP enabled so you must use <code class="docutils literal notranslate"><span class="pre">M-x</span> <span class="pre">lsp</span></code> again. To make
+this automatic, add this to your emacs init file:</p>
+<div class="highlight-elisp notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nv">add-hook</span><span class="w"> </span><span class="ss">&#39;dylan-mode-hook</span><span class="w"> </span><span class="ss">&#39;lsp</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p>Start emacs and make sure that <code class="file docutils literal notranslate"><span class="pre">lsp-dylan.el</span></code> is loaded. For example:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>emacs<span class="w"> </span>--load<span class="o">=</span>/path/to/lsp-dylan/lsp-dylan.el
+</pre></div>
+</div>
+<p>You will probably want to modify your Emacs init file to load the file with</p>
+<div class="highlight-elisp notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="nf">load</span><span class="w"> </span><span class="s">&quot;/path/to/lsp-dylan/lsp-dylan.el&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p>Open a Dylan source file and type <code class="docutils literal notranslate"><span class="pre">M-x</span> <span class="pre">lsp</span></code> to start the client (unless
+you added the hook above, in which case it started automatically).</p></li>
+</ol>
+<p>The client starts the LSP server (the <cite>dylan-lsp-server</cite> executable) and
+connects to it.  You should see a message telling you what Dylan project was
+opened.</p>
+<p>The emacs client has a customization group “lsp-dylan” which is a member of the
+“Language Server (lsp-mode)” group, and has the following variables:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">lsp-dylan-exe-pathname</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lsp-dylan-extra-command-line-options</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lsp-dylan-log-pathname</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lsp-dylan-open-dylan-release</span></code></p></li>
+</ul>
+<p>These are documented in the customization interface within emacs. Use <code class="docutils literal notranslate"><span class="pre">M-x</span>
+<span class="pre">customize-group</span></code> <code class="docutils literal notranslate"><span class="pre">lsp-dylan</span></code> to customize these variables.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Emacs lsp-mode saves state in <code class="file docutils literal notranslate"><span class="pre">~/.emacs.d/.lsp-session-v1</span></code>. If
+you have a problem with Dylan’s LSP support it’s a good idea to
+delete this file and try again.</p>
+</div>
+</section>
+<section id="visual-studio-code-usage">
+<h3>Visual Studio Code Usage<a class="headerlink" href="#visual-studio-code-usage" title="Permalink to this heading">#</a></h3>
+<p>These instructions were tested on Linux and macOS.</p>
+<ol class="arabic simple">
+<li><p>Install Visual Studio Code and <code class="docutils literal notranslate"><span class="pre">npm</span></code>.</p></li>
+<li><p>The VS Code extension is in the folder <code class="docutils literal notranslate"><span class="pre">vscode-dylan</span></code>. It is necessary to
+run <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">install</span></code> in this folder before starting the extension for the
+first time, and any time a <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">pull</span></code> updates the dependencies.</p></li>
+<li><p>Open the <code class="docutils literal notranslate"><span class="pre">vscode-dylan</span></code> folder in VS Code.</p></li>
+<li><p>In the debug viewlet, click the green play arrow (Launch Extension) or
+press <code class="docutils literal notranslate"><span class="pre">F5</span></code>.</p></li>
+<li><p>A build process will begin in ‘watch mode’; whenever the source is changed,
+the extension will be rebuilt. It is possible to debug the VS Code
+extension in this window, set breakpoints, watch variables and so on.</p></li>
+<li><p>A new VS Code window will open with the extension running.</p></li>
+<li><p>Open a folder with a Dylan project in it.</p></li>
+<li><p>If <strong class="program">dylan-lsp-server</strong> is on the system path, it will be
+found. Otherwise, open the Settings <em>in the new extension window</em>, find the
+Dylan section under Extensions, and edit the path to the LSP server. The
+full, absolute pathname to the executable needs to be specified. It is
+usually better to set this in the ‘User’ scope, otherwise it will only
+apply to that particular project.</p></li>
+<li><p>It should now be possible to use the extension window to edit Dylan code
+using LSP.</p></li>
+<li><p>If the VS Code extension is changed, it is necessary to restart the
+extension host, or just close and re-open the extension window.</p></li>
+</ol>
+</section>
+</section>
+<section id="lsp-server-development">
+<h2>LSP Server Development<a class="headerlink" href="#lsp-server-development" title="Permalink to this heading">#</a></h2>
+<p>This section contains notes for people interested in helping to improve LSP
+support for Dylan.</p>
+<section id="id1">
+<h3>Open Dylan<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<p>Unless you’re an Open Dylan expert already, you’ll probably find that you want
+to add debug statements in the Open Dylan IDE code to figure out what’s going
+on….</p>
+<ol class="arabic">
+<li><p>Turn on the <code class="docutils literal notranslate"><span class="pre">--debug-opendylan</span></code> by customizing
+<code class="docutils literal notranslate"><span class="pre">lsp-dylan-extra-command-line-options</span></code>. This causes extra in the
+<code class="docutils literal notranslate"><span class="pre">*lsp-dylan::stderr*</span></code> buffer from calls to the <code class="docutils literal notranslate"><span class="pre">debug-out</span></code> macro.</p></li>
+<li><p>Create a multi-package workspace with both the <code class="docutils literal notranslate"><span class="pre">lsp-dylan</span></code> repo and the
+<code class="docutils literal notranslate"><span class="pre">opendylan</span></code> repo:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>lsp<span class="p">;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>lsp
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/dylan-lang/lsp-dylan
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/dylan-lang/opendylan
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;{ &quot;default-library&quot;: &quot;dylan-lsp-server&quot; }&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>workspace.json
+</pre></div>
+</div>
+</li>
+<li><p>Sprinkle calls like <code class="docutils literal notranslate"><span class="pre">debug-out(#&quot;lsp&quot;,</span> <span class="pre">&quot;your</span> <span class="pre">message</span> <span class="pre">here&quot;,</span> <span class="pre">...)</span></code> around
+in the Open Dylan code as needed.</p></li>
+<li><p>Remember to delete <code class="file docutils literal notranslate"><span class="pre">~/.emacs.d/.lsp-session-v1`</span></code> as needed. I (cgay)
+usually start a new emacs after rebuilding :program:<code class="docutils literal notranslate"><span class="pre">dylan-lsp-server</span></code>,
+like this:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>~/.emacs.d/.lsp-session-v1<span class="p">;</span><span class="w"> </span>emacs<span class="w"> </span><span class="p">&amp;</span>
+</pre></div>
+</div>
+<p>If you don’t start a new emacs, you probably want to at least kill the old
+<strong class="program">dylan-lsp-server</strong> process. I (cgay) usually rebuild like this:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pkill<span class="w"> </span>-f<span class="w"> </span>bin/dylan-lsp-server<span class="p">;</span><span class="w"> </span>make<span class="w"> </span>install
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://docs.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol">Intro to LSP from Microsoft</a> -
+Besides being a quick introduction, this has links to some other tools that
+would help in developing VS Code integration for Dylan.</p></li>
+<li><p><a class="reference external" href="https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/">LSP v3.15 Specification</a> -
+This is the version we are currently coding to.</p></li>
+<li><p><a class="reference external" href="https://langserver.org/">langserver.org</a> lists LSP implementations that
+support at least one of the six major LSP features.</p></li>
+</ul>
+</section>
+<section id="index-and-search">
+<h2>Index and Search<a class="headerlink" href="#index-and-search" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2019, Peter Hull
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Dylan Language Server</a><ul>
+<li><a class="reference internal" href="#current-status">Current Status</a></li>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#usage">Usage</a><ul>
+<li><a class="reference internal" href="#emacs-usage">Emacs Usage</a></li>
+<li><a class="reference internal" href="#visual-studio-code-usage">Visual Studio Code Usage</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#lsp-server-development">LSP Server Development</a><ul>
+<li><a class="reference internal" href="#id1">Open Dylan</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#references">References</a></li>
+<li><a class="reference internal" href="#index-and-search">Index and Search</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    </body>
+</html>
