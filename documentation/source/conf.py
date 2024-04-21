@@ -56,3 +56,12 @@ html_theme = 'furo'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+
+# Ignore GitHub source code links with line number anchors in them because
+# they're apparently handled via Javascript and won't be found in the HTML.
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-linkcheck_anchors_ignore
+linkcheck_anchors_ignore = [r"^L\d+$"]
+
+# Ignore certificate verification
+tls_verify = False
