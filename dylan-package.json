@@ -4,7 +4,7 @@
     "version": "0.2.0",
     "dependencies": [
         "command-line-parser@3.1",
-        "dylan-tool@0.11.1",
+        "deft@0.12",
         "json@1.0",
         "logging@2.1",
         "uncommon-dylan@0.2",
