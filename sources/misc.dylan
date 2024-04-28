@@ -50,10 +50,10 @@ define function invoke-message-handler
 end function;
 
 // Find the workspace root. The "rootUri" LSP parameter takes precedence over
-// the deprecated "rootPath" LSP parameter. We first look for a `dylan-tool`
+// the deprecated "rootPath" LSP parameter. We first look for a `deft`
 // workspace root containing the file and then fall back to the nearest
 // directory containing a `registry` directory. This should work for
-// `dylan-tool` users and others equally well.
+// `deft` users and others equally well.
 define function find-workspace-root
     (root-uri, root-path) => (root :: false-or(<directory-locator>))
   let directory
