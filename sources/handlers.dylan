@@ -609,11 +609,11 @@ define function find-project-name
     let library-name
       = workspace & ws/workspace-default-library-name(workspace);
     if (library-name)
-      log-debug("Found dylan-tool workspace default library name %=", library-name);
+      log-debug("Found deft workspace default library name %=", library-name);
       library-name
     else
       error("Dylan workspace has no default library; no .lid files created yet?"
-              " See https://opendylan.org/package/dylan-tool/index.html#workspaces"
+              " See https://opendylan.org/package/deft/index.html#workspaces"
               " for how to configure a default project.");
     end
   end if
