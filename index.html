@@ -241,13 +241,13 @@ $<span class="w"> </span>cp<span class="w"> </span>_build/sbin/dylan-lsp-server<
 <h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h2>
 <p>The LSP server needs to be able to open a project (that is, a Dylan library)
 associated with the file you’re editing when you turn on LSP in your editor. It
-assumes you are using a <a class="reference external" href="https://github.com/dylan-lang/dylan-tool">dylan-tool</a> workspace and searches for a
-project to open as follows:</p>
+assumes you are using a <a class="reference external" href="https://github.com/dylan-lang/deft">deft</a> workspace
+and searches for a project to open as follows:</p>
 <ol class="arabic simple">
 <li><p>If there is a <code class="file docutils literal notranslate"><span class="pre">workspace.json</span></code> file and that file has a
 <cite>“default-library”</cite> property, the specified library is opened.</p></li>
-<li><p>It uses the <strong class="program">dylan</strong> tool to choose a library defined in the
-workspace. This is <a class="reference external" href="https://github.com/dylan-lang/dylan-tool/blob/292b7bf761745c9fa810511c9888f802dd787011/sources/workspaces/workspaces.dylan#L151">generally</a>
+<li><p>It uses <strong class="program">deft</strong> to choose a library defined in the workspace. This
+is <a class="reference external" href="https://github.com/dylan-lang/deft/blob/86583a27d1b63d1480a8c57e46d0dd249d131515/sources/workspaces/workspaces.dylan#L145">generally</a>
 the test suite library, if one exists; otherwise it chooses a project
 arbitrarily.</p></li>
 </ol>
@@ -256,7 +256,7 @@ derived from the full pathname to the <strong class="program">dylan-compiler</st
 which must be on your <span class="target" id="index-2"></span><code class="xref std std-envvar docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
 <p>When you open each new file in your editor the LSP client may try to start a
 new project if the file isn’t part of the same <strong class="program">dylan</strong> workspace
-directory. If you want the client to use just one project, use a <a class="reference external" href="https://opendylan.org/package/dylan-tool/index.html#workspaces">multi-package
+directory. If you want the client to use just one project, use a <a class="reference external" href="https://opendylan.org/package/deft/index.html#workspaces">multi-package
 workspace</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>

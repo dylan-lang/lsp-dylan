@@ -60,16 +60,15 @@ Usage
 
 The LSP server needs to be able to open a project (that is, a Dylan library)
 associated with the file you're editing when you turn on LSP in your editor. It
-assumes you are using a `dylan-tool
-<https://github.com/dylan-lang/dylan-tool>`_ workspace and searches for a
-project to open as follows:
+assumes you are using a `deft <https://github.com/dylan-lang/deft>`_ workspace
+and searches for a project to open as follows:
 
 1. If there is a :file:`workspace.json` file and that file has a
    `"default-library"` property, the specified library is opened.
 
-2. It uses the :program:`dylan` tool to choose a library defined in the
-   workspace. This is `generally
-   <https://github.com/dylan-lang/dylan-tool/blob/292b7bf761745c9fa810511c9888f802dd787011/sources/workspaces/workspaces.dylan#L151>`_
+2. It uses :program:`deft` to choose a library defined in the workspace. This
+   is `generally
+   <https://github.com/dylan-lang/deft/blob/86583a27d1b63d1480a8c57e46d0dd249d131515/sources/workspaces/workspaces.dylan#L145>`_
    the test suite library, if one exists; otherwise it chooses a project
    arbitrarily.
 
@@ -80,7 +79,7 @@ which must be on your :envvar:`PATH`.
 When you open each new file in your editor the LSP client may try to start a
 new project if the file isn't part of the same :program:`dylan` workspace
 directory. If you want the client to use just one project, use a `multi-package
-workspace <https://opendylan.org/package/dylan-tool/index.html#workspaces>`_.
+workspace <https://opendylan.org/package/deft/index.html#workspaces>`_.
 
 .. note:: Always run ``dylan update`` and ``dylan build -a`` in your workspace
           **before** starting the LSP server, or :program:`dylan-lsp-server`
