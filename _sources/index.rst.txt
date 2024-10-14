@@ -205,8 +205,8 @@ on....
 3. Sprinkle calls like ``debug-out(#"lsp", "your message here", ...)`` around
    in the Open Dylan code as needed.
 
-4. Remember to delete :file:`~/.emacs.d/.lsp-session-v1`` as needed. I (cgay)
-   usually start a new emacs after rebuilding :program:``dylan-lsp-server``,
+4. Remember to delete :file:`~/.emacs.d/.lsp-session-v1` as needed. I (cgay)
+   usually start a new emacs after rebuilding :program:`dylan-lsp-server`,
    like this::
 
      $ rm -f ~/.emacs.d/.lsp-session-v1; emacs &
