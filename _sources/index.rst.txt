@@ -38,7 +38,7 @@ Installation
    created::
 
      $ cd lsp-dylan
-     $ dylan update
+     $ deft update
 
 4. Build the ``dylan-lsp-server`` binary.  This will install the binary in
    ``${DYLAN}/bin``. If :envvar:`DYLAN` is not defined it defaults to
@@ -49,7 +49,7 @@ Installation
 
    or just run these commands::
 
-     $ dylan build --unify dylan-lsp-server
+     $ deft build --unify dylan-lsp-server
      $ cp _build/sbin/dylan-lsp-server /usr/local/bin/
 
 5. Make sure ``dylan-lsp-server`` is on your :envvar:`PATH`.
@@ -77,11 +77,11 @@ derived from the full pathname to the :program:`dylan-compiler` executable,
 which must be on your :envvar:`PATH`.
 
 When you open each new file in your editor the LSP client may try to start a
-new project if the file isn't part of the same :program:`dylan` workspace
+new project if the file isn't part of the same :program:`deft` workspace
 directory. If you want the client to use just one project, use a `multi-package
 workspace <https://opendylan.org/package/deft/index.html#workspaces>`_.
 
-.. note:: Always run ``dylan update`` and ``dylan build -a`` in your workspace
+.. note:: Always run ``deft update`` and ``deft build -a`` in your workspace
           **before** starting the LSP server, or :program:`dylan-lsp-server`
           may not be able to open your project. (This requirement will be
           removed in a future release.)
