@@ -6,7 +6,7 @@ install_bin     = $(DYLAN)/bin
 app_name	= dylan-lsp-server
 
 build: sources/*.dylan sources/lsp-dylan.lid sources/server.lid
-	dylan build --unify $(app_name)
+	deft build --unify $(app_name)
 
 install: build
 	mkdir -p $(install_bin)
@@ -17,7 +17,7 @@ install: build
 	fi
 
 test: sources/*-tests.dylan sources/test-suite*.dylan sources/test-suite.lid
-	dylan build lsp-dylan-test-suite
+	deft build lsp-dylan-test-suite
 	if [[ -d "_build" ]]; then             \
 	  _build/bin/lsp-dylan-test-suite ;    \
 	else                                   \

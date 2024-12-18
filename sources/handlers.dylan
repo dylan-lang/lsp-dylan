@@ -147,16 +147,26 @@ define handler workspace/didChangeConfiguration
   end;
 end handler;
 
+// TODO: make this configurable.
+define constant *module-name-replacements*
+  = begin
+      let t = make(<string-table>);
+      t[":dylan:dylan"] := "";
+      t
+    end;
+
 // Format symbol description into a hover message.
-// The description comes from the compiler database as a string with
-// multiple lines - the first is a location which we don't need.
-// Cut this and join the rest as one line.
 define function format-hover-message
-    (txt :: false-or(<string>)) => (hover :: false-or(<string>))
-  if (txt)
-    let lines = split-lines(txt);
-    join(tail(lines), " ", key: strip);
-  end if;
+    (text :: <string>) => (hover :: <string>)
+  let lines = copy-sequence(split-lines(text), start: 1); // Remove source location info.
+  let msg = join(lines, " ", key: strip);
+  for (want keyed-by got in *module-name-replacements*)
+    let pos = #f;
+    while (pos := subsequence-position(msg, got))
+      msg := replace-subsequence!(msg, want, start: pos, end: pos + got.size);
+    end;
+  end;
+  msg
 end function;
 
 // Show information about a symbol when we hover the cursor over it
@@ -175,8 +185,8 @@ define handler textDocument/hover
     let symbol = module & symbol-at-position(doc, line, column);
     let hover = if (symbol)
                   let txt = describe-symbol(symbol, module: module);
-                  let msg = format-hover-message(txt);
-                  if (msg)
+                  if (txt)
+                    let msg = format-hover-message(txt);
                     json("contents", make-lsp-markup-content(msg, markdown?: #f));
                   end;
                 else
@@ -214,10 +224,10 @@ define handler textDocument/didOpen
         show-info(session, "Opened project %s", name);
       elseif (name)
         show-error(session, "Couldn't open project %=."
-                     " Try running `dylan update` and `dylan build -a`.", name);
+                     " Try running `deft update` and `deft build -a`.", name);
       else
         show-error(session, "Couldn't determine which project to open."
-                     " Try running `dylan update` and `dylan build -a`.");
+                     " Try running `deft update` and `deft build -a`.");
         log-debug("textDocument/didOpen: No project found for %s", file);
       end;
     end if;
