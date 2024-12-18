@@ -224,10 +224,10 @@ define handler textDocument/didOpen
         show-info(session, "Opened project %s", name);
       elseif (name)
         show-error(session, "Couldn't open project %=."
-                     " Try running `dylan update` and `dylan build -a`.", name);
+                     " Try running `deft update` and `deft build -a`.", name);
       else
         show-error(session, "Couldn't determine which project to open."
-                     " Try running `dylan update` and `dylan build -a`.");
+                     " Try running `deft update` and `deft build -a`.");
         log-debug("textDocument/didOpen: No project found for %s", file);
       end;
     end if;
