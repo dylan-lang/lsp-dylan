@@ -49,7 +49,7 @@ define function lsp-open-project
   block ()
     let space = ws/load-workspace(directory: file.locator-directory);
     // Make sure the file's workspace registry is first.
-    let regs = concatenate(list(as(<string>, ws/workspace-registry-directory(space))),
+    let regs = concatenate(list(as(<string>, ws/registry-directory(space))),
                            if (original-user-registries)
                              list(original-user-registries)
                            else
