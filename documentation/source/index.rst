@@ -130,6 +130,7 @@ The emacs client has a customization group "lsp-dylan" which is a member of the
 * ``lsp-dylan-extra-command-line-options``
 * ``lsp-dylan-log-pathname``
 * ``lsp-dylan-open-dylan-release``
+* ``lsp-dylan-open-dylan-registry``
 
 These are documented in the customization interface within emacs. Use ``M-x
 customize-group`` ``lsp-dylan`` to customize these variables.

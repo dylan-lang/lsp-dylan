@@ -38,6 +38,15 @@
    of the dylan-compiler binary, which must be on the path."
   :type '(choice string (const nil)))
 
+(defcustom lsp-dylan-open-dylan-registry nil
+  "Absolute pathname of the Open Dylan registry directory.  If you expect to
+   modify Open Dylan libraries point this at the registry in your Git checkout
+   so that lsp-dylan will use the sources you are working on.
+
+   If nil, the registry in `lsp-dylan-open-dylan-release'/sources/registry
+   is used."
+  :type '(choice string (const nil)))
+
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
 
 (defun lsp-dylan--command ()
@@ -65,7 +74,8 @@
                           (getenv "OPEN_DYLAN_RELEASE_INSTALL")
                           (lsp-dylan--infer-install-dir)
                           (error "Can't find Open Dylan install directory")))
-         (registry-dir (or (getenv "OPEN_DYLAN_USER_REGISTRIES")
+         (registry-dir (or lsp-dylan-open-dylan-registry
+                           (getenv "OPEN_DYLAN_USER_REGISTRIES")
                            (expand-file-name "sources/registry"
                                              (file-name-as-directory install-dir)))))
     (list
