@@ -28,9 +28,6 @@ jobs:
 
       - name: Install Open Dylan
         uses: dylan-lang/install-opendylan@v3
-        with:
-          version: 2024.1
-          tag: v2024.1.0
 
       - name: Install dependencies
         run: dylan update
