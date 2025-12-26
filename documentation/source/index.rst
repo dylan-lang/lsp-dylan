@@ -79,7 +79,7 @@ which must be on your :envvar:`PATH`.
 When you open each new file in your editor the LSP client may try to start a
 new project if the file isn't part of the same :program:`deft` workspace
 directory. If you want the client to use just one project, use a `multi-package
-workspace <https://opendylan.org/package/deft/index.html#workspaces>`_.
+workspace <https://package.opendylan.org/deft/index.html#workspaces>`_.
 
 .. note:: Always run ``deft update`` and ``deft build -a`` in your workspace
           **before** starting the LSP server, or :program:`dylan-lsp-server`
