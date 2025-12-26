@@ -16,35 +16,35 @@
 
 (defcustom lsp-dylan-exe-pathname "dylan-lsp-server"
   "Name of the dylan-lsp-server executable.
-   Must be an absolute pathname or the binary must be on your PATH."
+Must be an absolute pathname or the binary must be on your PATH."
   :type 'string)
 
 (defcustom lsp-dylan-extra-command-line-options '()
   "List of command-line options to pass to dylan-lsp-server.
-   Possible values are \"--debug-opendylan\" and \"--debug-server\".
-   See `dylan-lsp-server --help` for more information on these options."
+Possible values are \"--debug-opendylan\" and \"--debug-server\".
+See `dylan-lsp-server --help` for more information on these options."
   :type '(repeat string))
 
 (defcustom lsp-dylan-log-pathname nil
   "Pathname of the server's log file.
-   The default is dylan-lsp-server.log, in the server's working directory,
-   which is normally the directory of the Dylan source file where the LSP
-   client was started."
+The default is dylan-lsp-server.log, in the server's working directory,
+which is normally the directory of the Dylan source file where the LSP
+client was started."
   :type 'file)
 
 (defcustom lsp-dylan-open-dylan-release nil
   "Absolute pathname of the Open Dylan installation directory.
-   If nil, infer the installation directory from the location
-   of the dylan-compiler binary, which must be on the path."
+If nil, infer the installation directory from the location
+of the dylan-compiler binary, which must be on the path."
   :type '(choice string (const nil)))
 
 (defcustom lsp-dylan-open-dylan-registry nil
   "Absolute pathname of the Open Dylan registry directory.  If you expect to
-   modify Open Dylan libraries point this at the registry in your Git checkout
-   so that lsp-dylan will use the sources you are working on.
+modify Open Dylan libraries point this at the registry in your Git checkout so
+that lsp-dylan will use the sources you are working on.
 
-   If nil, the registry in `lsp-dylan-open-dylan-release'/sources/registry
-   is used."
+If nil, the registry in `lsp-dylan-open-dylan-release'/sources/registry is
+used."
   :type '(choice string (const nil)))
 
 (add-to-list 'lsp-language-id-configuration '(dylan-mode . "dylan"))
