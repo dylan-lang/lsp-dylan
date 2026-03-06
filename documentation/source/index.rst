@@ -1,11 +1,11 @@
 .. highlight:: shell
 
-*********************
-Dylan Language Server
-*********************
+*********
+lsp-dylan
+*********
 
 This is an implementation of the `Language Server Protocol
-<https://microsoft.github.io/language-server-protocol/>`_ for Dylan.
+<https://microsoft.github.io/language-server-protocol/>`_ (LSP) for Dylan.
 
 .. toctree::
    :hidden:
@@ -13,12 +13,12 @@ This is an implementation of the `Language Server Protocol
 Current Status
 ==============
 
-As of 2024-04-19, the server implements
+As of February 2026, the server implements the following features:
 
 * Jump to declaration
 * Jump to definition
 * Diagnostics (i.e., compiler warnings)
-* Hover (i.e., argument lists)
+* Hover (i.e., parameter lists)
 
 When applied to a symbol which is bound to a generic function, "jump to
 definition" will show a list containing the generic function and its specific
