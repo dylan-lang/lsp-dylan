@@ -4,7 +4,8 @@ Author: Peter
 Copyright: 2019
 
 define function lsp-server-top-level
-    (#key debug-server? = #t, debug-opendylan? = #t) => ()
+    (#key debug-server? = #t, debug-opendylan? = #t, log-file :: <string>)
+ => ()
   *debug-mode?* := debug-server?;
   if (debug-opendylan?)
     enable-od-environment-debug-logging();
@@ -13,7 +14,7 @@ define function lsp-server-top-level
                      input-stream: *standard-input*,
                      output-stream: *standard-output*);
   block ()
-    lsp-pre-init-state-loop(session);
+    lsp-pre-init-state-loop(session, log-file);
     lsp-active-state-loop(session);
     lsp-shutdown-state-loop(session);
   cleanup
@@ -21,12 +22,19 @@ define function lsp-server-top-level
   end;
 end function;
 
+define constant $lsp-log-file-key = "_lsp-dylan-log-file";
+
 define function lsp-pre-init-state-loop
-    (session :: <session>) => ()
+    (session :: <session>, log-file :: <string>) => ()
   while (session.session-state == $session-preinit)
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
-    if (meth = "initialize" | meth = "exit")
+    if (meth = "initialize")
+      // Pass log file to the initialize method, which is the first place where we know
+      // what project we're working on and can put the log file in the project root.
+      params[$lsp-log-file-key] := log-file;
+      invoke-message-handler(meth, session, id, params);
+    elseif (meth = "exit")
       invoke-message-handler(meth, session, id, params);
     elseif (id)
       // Respond to any Request with an error, and drop any Notifications.

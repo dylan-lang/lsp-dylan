@@ -13,14 +13,6 @@ Copyright: 2019
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
 define handler initialize
     (session :: <session>, id, params)
-  // The very first received message is "initialize" (I think), and it seems
-  // that for some reason it doesn't get logged, so log params here. The params
-  // for this method are copious, so we log them with pretty printing.
-  log-debug("initialize(%=, %=, %s)",
-            session, id,
-            with-output-to-string (s)
-              print-json(params, s, indent: 2)
-            end);
   let trace = element(params, "trace", default: "off");
   select (trace by \=)
     "off" =>
@@ -49,12 +41,34 @@ define handler initialize
     // workspaceFolders, but lsp-mode doesn't send workspaceFolders.
     // Does VS Code send it?
     session.session-root := find-workspace-root(root-uri, root-path);
+    // lsp-dylan startup code stuffs the log file into the params.
+    let log-file = params[$lsp-log-file-key];
     if (session.session-root)
       log-info("Found Dylan workspace root: %s", session.session-root);
       working-directory() := session.session-root;
+      // If log-file is relative, put it in the project root by default.
+      log-file := merge-locators(session.session-root,
+                                 as(<file-locator>, log-file))
     end;
+    *log* := make(<log>,
+                  name: "lsp-dylan",
+                  level: if (*debug-mode?*)
+                           $debug-level
+                         else
+                           $info-level
+                         end,
+                  targets: list($stderr-log-target,
+                                make(<rolling-file-log-target>,
+                                     pathname: log-file)));
     log-info("Dylan LSP server working directory: %s", working-directory());
     session.session-state := $session-active
+  end;
+
+  // Now that logging has been configured...
+  if (*trace-messages?*)
+    log-debug("Received LSP 'initialize' message with ID %d:\n%s",
+              id, print-json-to-string(reduce-verbosity(params),
+                                       indent: 2, sort-keys?: #t));
   end;
 
   // Return the capabilities of this server

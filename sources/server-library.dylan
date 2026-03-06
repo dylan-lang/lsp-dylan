@@ -13,6 +13,7 @@ define module dylan-lsp-server
   use common-dylan;
   use command-line-parser;
   use file-system;
+  use format;
   use format-out;
   use locators;
   use logging;
