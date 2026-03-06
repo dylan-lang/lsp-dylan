@@ -7,7 +7,7 @@
         "command-line-parser@3.1",
         "deft",
         "json@1.0",
-        "logging@2.1",
+        "logging@2.2.2",
     ],
     "dev-dependencies": [
         "sphinx-extensions",
