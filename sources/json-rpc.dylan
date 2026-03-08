@@ -258,10 +258,42 @@ define class <stdio-session> (<session>)
     required-init-keyword: output-stream:;
 end class;
 
+// Logging the hover methods is so verbose it makes the logs hard to use, so we have a
+// simple mechanism to stifle them.  Not sure if it's worth implementing something like
+// "define [silent] handler ...", but that would make it easier to turn logging on and
+// off when working on hover or other silenced LSP methods.
+define constant $do-not-log-methods = #["textDocument/hover"];
+
+define variable *do-not-log-ids* :: <list> = #();
+
+define function log-message-json? (json :: <object>) => (log? :: <boolean>)
+  block (return)
+    if (~instance?(json, <table>))
+      return(#t);
+    end;
+    let id = element(json, "id", default: #f);
+    let meth = element(json, "method", default: #f);
+    if (meth & member?(meth, $do-not-log-methods, test: \=))
+      id & (*do-not-log-ids* := pair(id, *do-not-log-ids*));
+      // If a handler gets an error it might not send a reply so make sure our id list
+      // doesn't grow without bound.
+      if (*do-not-log-ids*.size > 100)
+        *do-not-log-ids* := copy-sequence(*do-not-log-ids*, end: 10);
+      end;
+      return(#f);
+    end;
+    if (id & member?(id, *do-not-log-ids*))
+      *do-not-log-ids* := remove!(*do-not-log-ids*, id);
+      return(#f);
+    end;
+    #t
+  end
+end function;
+
 define method send-raw-message
     (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
-  if (*trace-messages?*)
+  if (*trace-messages?* & log-message-json?(message))
     log-debug("Sent JSON:\n%s",
               print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
@@ -271,7 +303,7 @@ end method;
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
   let json = read-json-message(session.session-input-stream);
-  if (*trace-messages?*)
+  if (*trace-messages?* & log-message-json?(json))
     log-debug("Received JSON:\n%s",
               print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
   end;
