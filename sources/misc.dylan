@@ -13,6 +13,30 @@ define variable *trace-messages?* :: <boolean> = #f;
 // LSP client asked to trace in more detail? (Unused as of Mar 2024.)
 define variable *trace-verbose?* :: <boolean> = #f;
 
+// https://github.com/dylan-lang/lsp-dylan/issues/47
+define macro with-logged-stdio
+    { with-logged-stdio () ?:body end }
+ => { let _stdout = *standard-output*;
+      let _stderr = *standard-error*;
+      block ()
+        *standard-output* := make(<string-stream>, direction: #"output");
+        *standard-error*  := make(<string-stream>, direction: #"output");
+        ?body
+      cleanup
+        let out = stream-contents(*standard-output*);
+        let err = stream-contents(*standard-error*);
+        *standard-output* := _stdout;
+        *standard-error*  := _stderr;
+        if (~empty?(out))
+          log-warning("stdout: %s", out);
+        end;
+        if (~empty?(err))
+          log-warning("stderr: %s", err);
+        end;
+      end
+    }
+end macro;
+
 // Maps handler name strings like "textDocument/definition" to the
 // corresponding handler function.
 define constant $lsp-message-handlers = make(<string-table>);
@@ -63,9 +87,13 @@ define function find-workspace-root
         as(<directory-locator>, root-path)
       end;
   let workspace = ws/find-workspace-file(directory)
-                    & ws/load-workspace(directory: directory);
+                    & with-logged-stdio ()
+                        ws/load-workspace(directory: directory)
+                      end;
   if (workspace)
-    ws/workspace-directory(workspace)
+    with-logged-stdio ()
+      ws/workspace-directory(workspace)
+    end
   else
     // Search up from `directory` to find the directory containing the
     // "registry" directory.

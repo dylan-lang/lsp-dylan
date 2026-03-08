@@ -47,7 +47,9 @@ define function lsp-open-project
   let original-user-registries = environment-variable($open-dylan-user-registries);
   let project = #f;
   block ()
-    let space = ws/load-workspace(directory: file.locator-directory);
+    let space = with-logged-stdio ()
+                  ws/load-workspace(directory: file.locator-directory)
+                end;
     // Make sure the file's workspace registry is first.
     let regs = concatenate(list(as(<string>, ws/registry-directory(space))),
                            if (original-user-registries)

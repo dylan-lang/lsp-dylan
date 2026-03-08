@@ -629,9 +629,13 @@ define function find-project-name
     *project-name*
   else
     let workspace
-      = ws/load-workspace(directory: file.locator-directory); // May signal <workspace-error>
+      = with-logged-stdio ()
+          ws/load-workspace(directory: file.locator-directory) // May signal <workspace-error>
+        end;
     let library-name
-      = workspace & ws/workspace-default-library-name(workspace);
+      = workspace & with-logged-stdio ()
+                      ws/workspace-default-library-name(workspace)
+                    end;
     if (library-name)
       log-debug("Found deft workspace default library name %=", library-name);
       library-name
