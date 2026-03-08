@@ -1,3 +1,0 @@
-[submodule "vscode-dylan"]
-	path = vscode-dylan
-	url = https://github.com/dylan-lang/vscode-dylan.git
