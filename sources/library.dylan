@@ -44,7 +44,6 @@ define module lsp-dylan-impl
   use common-dylan;
   use file-source-records;
   use file-system;
-  use format-out;
   use format;
   use json;
   use locators;
