@@ -164,28 +164,9 @@ define function list-all-package-names ()
   end;
 end function;
 
-define method n (x :: od/<environment-object>)
-  // for debugging!
-  let s = od/print-environment-object-to-string(*project*, x);
-  format-to-string("%s%s", object-class(x), s);
-end;
-
-define method n (x :: <string>)
-  format-to-string("\"%s\"", x)
-end;
-
-define method n (x :: <locator>)
-  format-to-string("locator:\"%s\"", as(<string>, x))
-end;
-
-define method n (x == #f)
-  "#f"
-end;
-
 define function get-environment-object
     (symbol-name :: <string>, #key module) => (object :: false-or(od/<environment-object>))
   let library = od/project-library(*project*);
-  log-debug("%s -> module is %s", symbol-name, n(module));
   od/find-environment-object(*project*, symbol-name,
                              library: library, module: module);
 end function;
