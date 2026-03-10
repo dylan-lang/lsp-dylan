@@ -220,8 +220,7 @@ define handler textDocument/didOpen
     // Not sure how we would ever end up here, but...
     show-info("Ignoring non Dylan file: %s", uri)
   else
-    let text = textDocument["text"];
-    register-file(uri, text);   // TODO(cgay): check if already registered first.
+    let doc = make-document(textDocument);
     let file = file-uri-to-locator(uri);
     if (*project*)
       let (mod, lib) = od/file-module(*project*, file);
@@ -393,14 +392,14 @@ end handler;
 // TextDocumentContentChangeEvent json object that has a "text" attribute and optional
 // "range" attribute. If there is no range then text contains the entire new document.
 define function apply-change
-    (session :: <session>, document :: <open-document>, change :: <string-table>) => ()
+    (session :: <session>, document :: <document>, change :: <string-table>) => ()
   let text = change["text"];
   let range = element(change, "range", default: #f);
   if (range)
     show-error(session, "didChange doesn't support ranges yet");
   else
-    log-debug("document replaced: %s", document.document-uri);
-    document-lines(document) := split-lines(text);
+    log-debug("document replaced: %s", document.%uri);
+    document.%lines := split-lines(text);
   end;
 end function;
 
@@ -448,6 +447,7 @@ define handler textDocument/definition
   else
     let module = doc.document-module;
     let symbol = module & symbol-at-position(doc, line, column);
+    log-debug("textDocument/definition: module: %=, symbol: %=", module, symbol);
     if (symbol)
       locations := lookup-symbol(session, symbol, module: module);
       if (empty?(locations))
@@ -494,44 +494,47 @@ define handler textDocument/references
   send-response(session, id, locations);
 end handler;
 
-// Maps URI strings to <open-document> objects.
+// Maps URI strings to <document> objects.
 define constant $documents = make(<string-table>);
 
 // Represents one open file (given to us by textDocument/didOpen)
-define class <open-document> (<object>)
+define class <document> (<object>)
   // The original URI string passed to us by the client to open this document.
-  constant slot document-uri :: <string>,
-    required-init-keyword: uri:;
-  slot %document-module :: false-or(od/<module-object>) = #f,
-    init-keyword: module:;
-  slot document-lines :: <sequence>,
-    required-init-keyword: lines:;
+  constant slot %uri :: <string>, required-init-keyword: uri:;
+  // This changes as edits are made.
+  slot %lines :: <sequence>, required-init-keyword: lines:;
+  slot %module :: false-or(od/<module-object>) = #f, init-keyword: module:;
 end class;
 
 define method print-object
-    (document :: <open-document>, stream :: <stream>) => ()
+    (document :: <document>, stream :: <stream>) => ()
   printing-object (document, stream)
-    print(document.document-uri, stream);
+    print(document.%uri, stream);
   end;
 end method;
 
-
 define method document-module
-    (document :: <open-document>) => (module :: false-or(od/<module-object>))
-  document.%document-module
+    (document :: <document>) => (module :: false-or(od/<module-object>))
+  document.%module
     | if (*project*)
-        let file = file-uri-to-locator(document.document-uri);
+        let file = file-uri-to-locator(document.%uri);
         let (mod, lib) = od/file-module(*project*, file);
-        mod & (document.%document-module := mod)
+        mod & (document.%module := mod)
       end
 end method;
 
-
-define function register-file (uri, contents)
-  log-debug("register-file(%=)", uri);
-  let lines = split-lines(contents);
-  let doc = make(<open-document>, uri: uri, lines: lines);
-  $documents[uri] := doc;
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
+define function make-document
+    (textDocument :: <string-table>) => (doc :: <document>)
+  // We ignore the "languageId" field because it should always be "dylan".
+  let uri = textDocument["uri"];
+  let version = textDocument["version"];
+  // TODO: find the module (from the document header) and provide the module: init
+  // keyword here.
+  $documents[uri]
+    := make(<document>,
+            uri: uri,
+            lines: split-lines(textDocument["text"]))
 end function;
 
 // Characters that are part of the Dylan "name" BNF.
@@ -542,13 +545,16 @@ define constant $dylan-name-characters
 // (or immediately precedes) this position. If the position is, for example,
 // the open paren following a function name, we should still find the name. If
 // there is no name at position, return #f.
+//
+// TODO: Fancy stuff like if the line begins with "define" look up the "-definer".  Maybe
+// return a second value to indicate that this might be a definer.
 define function symbol-at-position
-    (doc :: <open-document>, line, column) => (symbol :: false-or(<string>))
+    (doc :: <document>, line, column) => (symbol :: false-or(<string>))
   if (line >= 0
-        & line < size(doc.document-lines)
+        & line < size(doc.%lines)
         & column >= 0
-        & column <= size(doc.document-lines[line]))
-    let line = doc.document-lines[line];
+        & column <= size(doc.%lines[line]))
+    let line = doc.%lines[line];
     local method name-character?(c) => (well? :: <boolean>)
             member?(c, $dylan-name-characters)
           end;
@@ -564,7 +570,7 @@ define function symbol-at-position
     ~empty?(name) & name
   else
     log-debug("line %d column %d not in range for document %s",
-              line, column, doc.document-uri);
+              line, column, doc.%uri);
     #f
   end
 end function;
@@ -603,7 +609,7 @@ end function;
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams
 // line and column are zero-based
 define function textdocumentposition-to-position
-    (params :: <object>) => (doc :: false-or(<open-document>), line :: <integer>, column :: <integer>)
+    (params :: <object>) => (doc :: false-or(<document>), line :: <integer>, column :: <integer>)
   let text-document = params["textDocument"];
   let uri = text-document["uri"];
   let position = params["position"];
@@ -653,7 +659,7 @@ define handler exit
 end handler;
 
 
-ignore(*library*, run-compiler, list-all-package-names, document-lines-setter,
+ignore(*library*, run-compiler, list-all-package-names,
        show-warning, show-log, show-error);
 
 // Local Variables:
