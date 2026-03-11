@@ -21,9 +21,9 @@ define library lsp-dylan
   use registry-projects;
   use release-info;
   use source-records;
-  //use stack-walker;
   use strings;
   use system;
+  use uncommon-dylan;
 
   export
     lsp-dylan,
@@ -56,6 +56,7 @@ define module lsp-dylan-impl
   use strings;
   use threads;
   use workspaces, prefix: "ws/";
+  use uncommon-utils;
 
   // Modules in Open Dylan proper (not those in opendylan/sources/lib) use the od/ prefix.
   use dfmc-reader, prefix: "od/";

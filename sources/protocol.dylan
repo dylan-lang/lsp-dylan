@@ -13,7 +13,9 @@ define constant $diagnostic-severity-warning = 2;
 
 // --- ErrorCodes ---
 
-// Define by JSON
+// TODO: this is no longer a complete list of error codes. Also, use 'define enum'.
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#errorCodes
+
 define constant $parse-error :: <integer> = -32700;
 define constant $invalid-request :: <integer> = -32600;
 define constant $method-not-found :: <integer> = -32601;

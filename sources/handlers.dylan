@@ -10,27 +10,11 @@ Copyright: 2019
 // the static capabilities of this server.  In the future we can register
 // capabilities dynamically by sending messages back to the client; this seems
 // to be the preferred 'new' way to do things.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize
 define handler initialize
     (session :: <session>, id, params)
   let trace = element(params, "trace", default: "off");
-  select (trace by \=)
-    "off" =>
-      *trace-messages?* := #f;
-      *trace-verbose?* := #f;
-    "messages" =>
-      *trace-messages?* := #t;
-      *trace-verbose?* := #f;
-    "verbose" =>
-      *trace-messages?* := #t;
-      *trace-verbose?* := #t;
-    otherwise =>
-      log-error("initialize: trace must be 'off', 'messages' or 'verbose', not %=",
-                trace);
-  end select;
-  log-debug("initialize: debug: %s, messages: %s, verbose: %s",
-            *debug-mode?*, *trace-messages?*, *trace-verbose?*);
-
+  session.session-trace := name-to-trace-value(trace);
   // The initialize message may be received multiple times and we don't want
   // to change the working directory each time. Need to re-use the same _build
   // directory to keep build times short. (Should this be ~== $session-active ?)
@@ -44,28 +28,25 @@ define handler initialize
     // lsp-dylan startup code stuffs the log file into the params.
     let log-file = params[$lsp-log-file-key];
     if (session.session-root)
-      log-info("Found Dylan workspace root: %s", session.session-root);
       working-directory() := session.session-root;
       // If log-file is relative, put it in the project root by default.
       log-file := merge-locators(session.session-root,
                                  as(<file-locator>, log-file))
     end;
+    // TBD whether our logging is totally redundant with sending `$/logTrace` messages.
     *log* := make(<log>,
                   name: "lsp-dylan",
-                  level: if (*debug-mode?*)
-                           $debug-level
-                         else
-                           $info-level
+                  level: select (session.session-trace)
+                           $trace-messages, $trace-verbose => $debug-level;
+                           otherwise => $info-level;
                          end,
                   targets: list($stderr-log-target,
                                 make(<rolling-file-log-target>,
                                      pathname: log-file)));
-    log-info("Dylan LSP server working directory: %s", working-directory());
     session.session-state := $session-active
   end;
-
   // Now that logging has been configured...
-  if (*trace-messages?*)
+  if (session.trace-messages?)
     log-debug("Received LSP 'initialize' message with ID %d:\n%s",
               id, print-json-to-string(reduce-verbosity(params),
                                        indent: 2, sort-keys?: #t));
@@ -79,8 +60,15 @@ define handler initialize
                           "definitionProvider", #t,
                           "referencesProvider", #t,
                           "workspaceSymbolProvider", #t);
-  let response-params = json("capabilities", capabilities);
+  let response-params
+    = json("capabilities", capabilities,
+           // TODO: send server version
+           "serverInfo", json("name", "Dylan LSP Server"));
   send-response(session, id, response-params);
+  log-info("Workspace root: %s", session.session-root);
+  log-info("Debug server?: %=", *debug-server?*);
+  log-info("Trace: %s", trace);
+  log-info("Dylan LSP server initialized.");
 end handler;
 
 // Handler for 'initialized' message.
@@ -334,6 +322,7 @@ define function publish-diagnostics
       //   "codeDescription" - a URL with more info about the error
       //   "tags" - e.g., deprecated or unused code
       //   "relatedInformation" - e.g., location of colliding definition
+      //   "data" - ??
       let severity
         = if (instance?(warning, od/<serious-compiler-warning-object>))
             $diagnostic-severity-error

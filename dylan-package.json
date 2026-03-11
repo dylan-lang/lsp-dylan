@@ -8,6 +8,7 @@
         "deft",
         "json@1.0",
         "logging@2.2.2",
+        "uncommon-dylan",
     ],
     "dev-dependencies": [
         "sphinx-extensions",

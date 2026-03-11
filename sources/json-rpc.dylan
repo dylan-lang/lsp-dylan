@@ -70,6 +70,7 @@ define method read-json-message (stream :: <stream>) => (json :: <object>)
   if (hdrs)
     let content-length = element(hdrs, $content-length-header, default: "0");
     let content-length = string-to-integer(content-length);
+    // TODO: Content-Type header
     let data = read(stream, content-length);
     parse-json(data)
   end
@@ -112,12 +113,17 @@ define class <session> (<object>)
   constant slot session-callbacks = make(<equal-table>);
   // Root path or URI
   slot session-root = #f;
+  slot session-trace :: <integer> = $trace-verbose;
 end class;
 
 define generic send-raw-message
     (session :: <session>, message :: <object>) => ();
 define generic receive-raw-message
     (session :: <session>) => (message :: <object>);
+
+define function trace-messages? (session :: <session>) => (_ :: <boolean>)
+  session.session-trace ~== $trace-off
+end function;
 
 // Send a request message.
 // Optionally, register a callback to be called with the response
@@ -175,7 +181,7 @@ define method send-notification
     message["params"] := params;
   end;
   send-raw-message(session, message);
-  if (*trace-messages?*)
+  if (session.trace-messages?)
     log-debug("send-notification: %=", method-name);
   end;
 end method;
@@ -198,7 +204,7 @@ define method receive-message
         return(method-name, id, params);
       else
         // Received a response
-        if (*trace-messages?*)
+        if (session.trace-messages?)
           log-debug("receive-message: got id %=", id);
         end;
         let func = element(session.session-callbacks, id, default: #f);
@@ -293,7 +299,7 @@ end function;
 define method send-raw-message
     (session :: <stdio-session>, message :: <object>) => ()
   let str :: <string> = print-json-to-string(message);
-  if (*trace-messages?* & log-message-json?(message))
+  if (session.trace-messages? & log-message-json?(message))
     log-debug("Sent JSON:\n%s",
               print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
@@ -303,7 +309,7 @@ end method;
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
   let json = read-json-message(session.session-input-stream);
-  if (*trace-messages?* & log-message-json?(json))
+  if (session.trace-messages? & log-message-json?(json))
     log-debug("Received JSON:\n%s",
               print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
   end;

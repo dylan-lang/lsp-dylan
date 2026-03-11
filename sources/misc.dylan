@@ -2,16 +2,17 @@ Module: lsp-dylan-impl
 Synopsis: The ubiquitous misc.
 
 
-// Server started with --debug command line option? If true, let the server
-// crash and display a backtrace in the LSP stderr buffer instead of logging
-// the error.
-define variable *debug-mode?* :: <boolean> = #f;
+// Server started with --debug-server command line option? If true, let the server enter
+// the debugger or crash and display a backtrace in the lsp-mode stderr buffer instead of
+// logging the error.  (Where does this backtrace go when VS Code is the client?)
+define variable *debug-server?* :: <boolean> = #f;
 
-// LSP client asked to trace messages?
-define variable *trace-messages?* :: <boolean> = #f;
-
-// LSP client asked to trace in more detail? (Unused as of Mar 2024.)
-define variable *trace-verbose?* :: <boolean> = #f;
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#traceValue
+define enum trace-value ()
+  $trace-off "off";
+  $trace-messages "messages";
+  $trace-verbose "verbose";
+end;
 
 // https://github.com/dylan-lang/lsp-dylan/issues/47
 define macro with-logged-stdio
@@ -57,7 +58,7 @@ define function invoke-message-handler
   if (fn)
     block ()
       fn(session, id, params);
-    exception (err :: <error>, test: method (_) ~*debug-mode?* end)
+    exception (err :: <error>, test: method (_) ~*debug-server?* end)
       log-error("Error handling message %= (id=%s): %s",
                 name, id, err);
     end;
