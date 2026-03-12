@@ -93,7 +93,7 @@ define handler initialized
                            show-info(session, "Thanks la")
                          end);
 */
-  show-info(session, "Dylan LSP server started.");
+  show-info(session, "Dylan LSP server initialized");
   let in-stream = make(<string-stream>);
   let out-stream = make(<string-stream>, direction: #"output");
   for (var in list("OPEN_DYLAN_RELEASE",
@@ -650,6 +650,7 @@ end handler;
 
 ignore(*library*, run-compiler, list-all-package-names,
        show-warning, show-log, show-error);
+
 
 // Local Variables:
 // indent-tabs-mode: nil

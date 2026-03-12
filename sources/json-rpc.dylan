@@ -105,7 +105,10 @@ define constant $session-killed = 4;
 
 // Manage one connection to a server, including life-cycle.
 define class <session> (<object>)
-  // Next ID to use in a request/notification.
+  // Next ID to use in a request/notification.  The spec doesn't say whether these IDs
+  // are in a separate namespace from the requests sent to us from the client, but we
+  // assume they are.  That is, we may receive a request with ID 0 that is distinct from
+  // a request with ID 0 that we send to the client.
   slot session-id :: <integer> = 0;
   // Current state, see $session-preinit et al.
   slot session-state :: <integer> = $session-preinit;
