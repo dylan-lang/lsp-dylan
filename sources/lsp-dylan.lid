@@ -4,5 +4,6 @@ Files: library
        protocol
        opendylan
        json-rpc
+       documents
        handlers
        top-level

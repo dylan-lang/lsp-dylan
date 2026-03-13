@@ -8,119 +8,12 @@ Copyright: 2019
 // Copyright: Original Code is Copyright (c) 2008-2012 Dylan Hackers; All rights reversed.
 
 
-define constant $open-dylan-user-registries = "OPEN_DYLAN_USER_REGISTRIES";
-
 define variable *dylan-compiler* :: false-or(<command-line-server>) = #f;
-
-// Currently we only support a single open project. This is #f until
-// textDocument/didOpen is first called.
-define variable *project* :: false-or(od/<project-object>) = #f;
-
-define variable *library* = #f;
-define variable *project-name* = #f;
 
 define function start-compiler
     (input-stream, output-stream) => (server :: <command-line-server>)
   od/make-environment-command-line-server(input-stream: input-stream,
                                           output-stream: output-stream)
-end function;
-
-// Execute a single 'command-line' style command on the server
-define function run-compiler(server, string :: <string>) => ()
-  execute-command-line(server, string);
-end function;
-
-// Open the project containing `file`.
-define function lsp-open-project
-    (session, file :: <file-locator>)
- => (project :: false-or(od/<project-object>), project-name :: false-or(<string>))
-  let project-name = find-project-name(file);
-  log-debug("lsp-open-project: Found project name %=", project-name);
-  let command = make-command(od/<open-project-command>,
-                             server: server-context(*dylan-compiler*),
-                             file: as(<file-locator>, project-name));
-
-  // Set OPEN_DYLAN_USER_REGISTRIES so we aren't depending on the working
-  // directory being correct.  Reset it to the original value when done so we
-  // don't keep appending the same value to it.  This obviously isn't thread
-  // safe; <open-project-command> needs a way to pass this through.
-  let original-user-registries = environment-variable($open-dylan-user-registries);
-  let project = #f;
-  block ()
-    let space = with-logged-stdio ()
-                  ws/load-workspace(directory: file.locator-directory)
-                end;
-    // Make sure the file's workspace registry is first.
-    let regs = concatenate(list(as(<string>, ws/registry-directory(space))),
-                           if (original-user-registries)
-                             list(original-user-registries)
-                           else
-                             #()
-                           end);
-    let user-registries = join(regs, if ($os-name == #"win32") ";" else ":" end);
-    log-debug("lsp-open-project: Setting ODUR to %=", user-registries);
-    environment-variable($open-dylan-user-registries) := user-registries;
-    project := execute-command(command);
-    log-debug("lsp-open-project: Result of opening %= is %=", project-name, project);
-  cleanup
-    environment-variable($open-dylan-user-registries)
-      := original-user-registries;
-  exception (err :: <abort>)
-    // This is usually because no registry file was found. Why isn't a better
-    // error signaled?
-    log-debug("lsp-open-project: condition of class %= signaled", err);
-  end;
-
-  // Debugging only...
-
-  if (~project)
-    log-debug("lsp-open-project: project did't open");
-  else
-    let (mod, lib) = project & od/file-module(project, file);
-    log-debug("lsp-open-project: mod = %=, lib = %=", mod, lib);
-    log-debug("lsp-open-project: Try Module: %=, Library: %=",
-              mod & od/environment-object-primitive-name(project, mod),
-              lib & od/environment-object-primitive-name(project, lib));
-
-    log-debug("lsp-open-project: project-library = %=", od/project-library(project));
-    log-debug("lsp-open-project: project db = %=", od/project-compiler-database(project));
-
-    let warn = curry(log-warning, "open-project-compiler-database: %=");
-    let db = od/open-project-compiler-database(project, warning-callback: warn);
-    log-debug("lsp-open-project: db = %=", db);
-    for (s in od/project-sources(project))
-      let rl = source-record-location(s);
-      log-debug("lsp-open-project: Source: %=, a %= in %=",
-                s,
-                object-class(s),
-                as(<string>, rl));
-    end;
-    log-debug("lsp-open-project: listing project file libraries:");
-    od/do-project-file-libraries(method (l, r)
-                                   log-debug("lsp-open-project: Lib: %= Rec: %=", l, r);
-                                 end,
-                                 project,
-                                 as(<file-locator>, "library.dylan"));
-    log-debug("lsp-open-project: Database: %=", od/project-compiler-database(project));
-  end if;
-
-  values(project, project-name)
-end function;
-
-// Get a symbol's description from the compiler database.
-// This is used to implement the 'hover' function.
-//
-// Parameters:
-//  symbol-name - a <string>
-//  module - a <module-object> or #f
-// Returns:
-//  description - a <string> or #f
-define function describe-symbol
-    (symbol-name :: <string>, #key module) => (description :: false-or(<string>))
-  let env = get-environment-object(symbol-name, module: module);
-  if (env)
-    od/environment-object-description(*project*, env, module)
-  end
 end function;
 
 // Given a definition, make a list of all the places it is used.
@@ -131,8 +24,9 @@ end function;
 // Returns:
 //  A sequence of source records.
 define function all-references
-    (object :: od/<definition-object>, #key include-self?) => (references :: <sequence>)
-  let clients = od/source-form-clients(*project*, object);
+    (object :: od/<definition-object>, project :: od/<project-object>, #key include-self?)
+ => (references :: <sequence>)
+  let clients = od/source-form-clients(project, object);
   if (include-self?)
     add(clients, object)
   else
@@ -140,35 +34,13 @@ define function all-references
   end if;
 end function;
 
-// Given an environment-object, get its source-location
-define function get-location
-    (object :: od/<environment-object>) => (location :: <source-location>)
-  od/environment-object-source-location(*project*, object);
-end function;
-
-define function list-all-package-names ()
-  local method collect-project
-            (dir :: <pathname>, filename :: <string>, type :: <file-type>)
-          if (type == #"file")
-            if (last(filename) ~= '~')
-              log-debug("%s", filename);
-            end;
-          end;
-        end;
-  let regs = od/find-registries(as(<string>, target-platform-name()));
-  let reg-paths = map(od/registry-location, regs);
-  for (reg-path in reg-paths)
-    if (file-exists?(reg-path))
-      do-directory(collect-project, reg-path);
-    end;
-  end;
-end function;
-
-define function get-environment-object
-    (symbol-name :: <string>, #key module) => (object :: false-or(od/<environment-object>))
-  let library = od/project-library(*project*);
-  od/find-environment-object(*project*, symbol-name,
-                             library: library, module: module);
+define function find-environment-object
+    (name :: <string>, doc :: <document>)
+ => (object :: false-or(od/<environment-object>))
+  let library = od/project-library(doc.%project);
+  od/find-environment-object(doc.%project, name,
+                             library: library,
+                             module: doc.document-module);
 end function;
 
 // Given a definition, find all associated definitions.

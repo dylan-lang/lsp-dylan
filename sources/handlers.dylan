@@ -4,7 +4,8 @@ Author: Peter
 Copyright: 2019
 
 // Handlers are roughly grouped together by type. For example, initialization,
-// textDocument/*, workspace/*, etc.
+// textDocument/*, workspace/*, etc.  The handler is often a thin wrapper that extracts
+// the necessary data from the protocol messages and then calls other functions.
 
 // Initialize logging/tracing and store the workspace root for later.  Transmit
 // the static capabilities of this server.  In the future we can register
@@ -113,6 +114,14 @@ define handler initialized
   *dylan-compiler* := start-compiler(in-stream, out-stream);
 end handler;
 
+define handler exit
+    (session :: <session>, id, params)
+  session.session-state := $session-killed;
+end handler;
+
+// --------------------------------------------------------------------------------
+// Workspace handlers
+
 define handler workspace/workspaceFolders
     (session :: <session>, id, params)
   // TODO: handle multi-folder workspaces.
@@ -137,17 +146,12 @@ define handler workspace/didChangeConfiguration
   // NOTE: vscode always sends this just after initialized, whereas
   // emacs does not, so we need to ask for config items ourselves and
   // not wait to be told.
-  log-debug("Did change configuration");
-  log-debug("Settings: %s", print-json-to-string(params));
-  // TODO do something with this info.
-  let settings = params["settings"];
-  let dylan-settings = element(settings, "dylan", default: #f);
-  let project-name = dylan-settings
-                       & element(dylan-settings, "project", default: #f);
-  if (project-name & ~empty?(project-name))
-    *project-name* := project-name;
-  end;
+
+  // Nothing here yet...
 end handler;
+
+// --------------------------------------------------------------------------------
+// textDocument handlers
 
 // TODO: make this configurable.
 define constant *module-name-replacements*
@@ -171,32 +175,34 @@ define function format-hover-message
   msg
 end function;
 
-// Show information about a symbol when we hover the cursor over it
-// See: https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_hover
-// Parameters: textDocument, position, (optional) workDoneToken
-// Returns: contents, (optional) range
+// Show information about a symbol when the pointer moves over it.
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_hover
 define handler textDocument/hover
     (session :: <session>, id, params)
-  let (doc, line, column)  = textdocumentposition-to-position(params);
-  if (~doc)
-    let uri = params["textDocument"]["uri"];
-    log-debug("textDocument/hover: document %= not found", uri);
-    show-error(session, "Document not found: %s", uri);
-  else
-    let module = doc.document-module;
-    let symbol = module & symbol-at-position(doc, line, column);
-    let hover = if (symbol)
-                  let txt = describe-symbol(symbol, module: module);
-                  if (txt)
-                    let msg = format-hover-message(txt);
-                    json("contents", make-lsp-markup-content(msg, markdown?: #f));
-                  end;
-                else
-                  log-debug("textDocument/hover: No data found for %s (line: %=, column: %=)",
-                            doc, line, column);
-                end;
-    send-response(session, id, hover | $null);
-  end if;
+  with-lsp-params (params,
+                   uri = "textDocument.uri",
+                   line = "position.line",
+                   column = "position.character")
+    let doc = find-document(uri);
+    if (~doc)
+      log-debug("textDocument/hover: document %= not found", uri);
+    else
+      let module = doc.document-module;
+      let name   = module & dylan-name-at-position(doc, line, column);
+      let object = name   & find-environment-object(name, doc);
+      let text   = object & od/environment-object-description(doc.%project, object, module);
+      let msg    = text   & format-hover-message(text);
+      let result
+        = if (msg)
+            json("contents", make-lsp-markup-content(msg, markdown?: #f))
+          else
+            log-debug("textDocument/hover: No data found for %s (line: %=, column: %=)",
+                      doc, line, column);
+            $null
+          end;
+      send-response(session, id, result);
+    end;
+  end;
 end handler;
 
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
@@ -208,30 +214,16 @@ define handler textDocument/didOpen
     // Not sure how we would ever end up here, but...
     show-info("Ignoring non Dylan file: %s", uri)
   else
-    let doc = make-document(textDocument);
-    let file = file-uri-to-locator(uri);
-    if (*project*)
-      let (mod, lib) = od/file-module(*project*, file);
-      if (mod)
-        log-debug("textDocument/didOpen: %s belongs to project %s (module: %s)", file, *project*, mod);
-      else
-        log-debug("textDocument/didOpen: File %s not found in project %s.", file, *project*);
-        show-error(session, "File %s not found in project %s.", file, *project*);
-      end;
+    let text :: <string> = textDocument["text"];
+    let version :: <integer> = textDocument["version"];
+    // TODO: have open-document signal an error once we've fixed
+    // https://github.com/dylan-lang/lsp-dylan/issues/15
+    let doc = open-document(session, uri, text, version);
+    if (doc)
+      $documents[uri] := doc;
     else
-      let (project, name) = lsp-open-project(session, file);
-      if (project)
-        *project* := project;
-        show-info(session, "Opened project %s", name);
-      elseif (name)
-        show-error(session, "Couldn't open project %=."
-                     " Try running `deft update` and `deft build -a`.", name);
-      else
-        show-error(session, "Couldn't determine which project to open."
-                     " Try running `deft update` and `deft build -a`.");
-        log-debug("textDocument/didOpen: No project found for %s", file);
-      end;
-    end if;
+      show-error("Document not found: %s", uri);
+    end;
   end if;
 end handler;
 
@@ -243,32 +235,21 @@ define handler textDocument/didSave
     (session :: <session>, id, params)
   let textDocument = params["textDocument"];
   let uri = textDocument["uri"];
-  let file = file-uri-to-locator(uri);
-  let project = find-project-name(file);
-  log-debug("textDocument/didSave: URI %s, project %=", uri, project);
-  if (project)
-    let project-object = od/find-project(project);
-    log-debug("textDocument/didSave: project = %=", project-object);
-    if (project-object)
-      let warnings = make(<stretchy-vector>);
-      od/build-project(project-object,
-                       link?: #f,
-                       warning-callback: curry(add!, warnings),
-                       error-handler: method (kind :: <symbol>, message :: <string>)
-                                        log-debug("%s: %s", kind, message);
-                                      end);
-      log-debug("textDocument/didSave: done building %=", project);
-      show-info(session, "Build complete, %s warning%s",
-                if (empty?(warnings)) "no" else warnings.size end,
-                if (warnings.size == 1) "" else "s" end);
-      publish-diagnostics(session, uri, warnings);
-    else
-      show-error(session, "Project %s not found.", project);
-    end;
-  else
-    log-debug("textDocument/didSave: project not found for %=", uri);
-    show-error(session, "Project %s not found.", project);
-  end;
+  let doc = find-document(uri)
+              | error("Document not found: %s", uri);
+  let warnings = make(<stretchy-vector>);
+  od/build-project(doc.%project,
+                   // https://github.com/dylan-lang/lsp-dylan/issues/48#issuecomment-4040703053
+                   link?: #f,
+                   warning-callback: curry(add!, warnings),
+                   error-handler: method (kind :: <symbol>, message :: <string>)
+                                    log-debug("%s: %s", kind, message);
+                                  end);
+  log-debug("textDocument/didSave: done building %=", doc.%project);
+  show-info(session, "Build complete, %s warning%s",
+            if (empty?(warnings)) "no" else warnings.size end,
+            if (warnings.size == 1) "" else "s" end);
+  publish-diagnostics(session, uri, warnings);
 end handler;
 
 define variable *previous-warnings-by-uri* = #f;
@@ -397,29 +378,31 @@ end function;
 // In 'Dylan world' this means jump to the generic function if there is one
 define handler textDocument/declaration
     (session :: <session>, id, params)
-  let (doc, line, column) = textdocumentposition-to-position(params);
-  let location = $null;
-  if (~doc)
-    let uri = params["textDocument"]["uri"];
-    log-debug("textDocument/declaration: document not found: %=", uri);
-    // TODO: do we need both show-error and send-response?
-    show-error(session, "Document not found: %s", uri);
-  else
-    let module = doc.document-module;
-    let symbol = module & symbol-at-position(doc, line, column);
-    if (symbol)
-      let lookups = lookup-symbol(session, symbol, module: module);
-      if (~empty?(lookups))
-        location := first(lookups);
-      else
-        log-debug("textDocument/declaration: symbol %=, not found", symbol);
-      end;
+  with-lsp-params (params,
+                   uri = "textDocument.uri",
+                   line = "position.line",
+                   column = "position.character")
+    let doc = find-document(uri);
+    let location = $null;
+    if (~doc)
+      log-debug("textDocument/declaration: document not found: %=", uri);
     else
-      log-debug("textDocument/declaration: symbol is #f, nothing to lookup", symbol);
-      show-info(session, "No symbol found at current position.");
+      let module = doc.document-module;
+      let name = module & dylan-name-at-position(doc, line, column);
+      if (name)
+        let lookups = lookup-symbol(name, doc);
+        if (~empty?(lookups))
+          location := first(lookups);
+        else
+          log-debug("textDocument/declaration: name %= not found", name);
+        end;
+      else
+        log-debug("textDocument/declaration: name is #f, nothing to lookup", name);
+        show-info(session, "No name found at current position.");
+      end;
     end;
+    send-response(session, id, location);
   end;
-  send-response(session, id, location);
 end handler;
 
 
@@ -427,153 +410,81 @@ end handler;
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_definition
 define handler textDocument/definition
     (session :: <session>, id, params)
-  let (doc, line, column) = textdocumentposition-to-position(params);
-  let locations = $null;
-  if (~doc)
-    let uri = params["textDocument"]["uri"];
-    log-debug("textDocument/definition: document not found: %=", uri);
-    show-error(session, "Document not found: %s", uri);
-  else
-    let module = doc.document-module;
-    let symbol = module & symbol-at-position(doc, line, column);
-    log-debug("textDocument/definition: module: %=, symbol: %=", module, symbol);
-    if (symbol)
-      locations := lookup-symbol(session, symbol, module: module);
-      if (empty?(locations))
-        log-debug("textDocument/definition: symbol %=, not found", symbol);
-      end;
+  with-lsp-params (params,
+                   uri = "textDocument.uri",
+                   line = "position.line",
+                   column = "position.character")
+    let doc = find-document(uri);
+    let locations = $null;
+    if (~doc)
+      log-debug("textDocument/definition: document not found: %=", uri);
+      show-error(session, "Document not found: %s", uri);
     else
-      log-debug("textDocument/definition: symbol is #f, nothing to lookup", symbol);
-      show-info(session, "No symbol found at current position.");
+      let module = doc.document-module;
+      let name = module & dylan-name-at-position(doc, line, column);
+      log-debug("textDocument/definition: module: %=, name: %=", module, name);
+      if (name)
+        locations := lookup-symbol(name, doc);
+        if (empty?(locations))
+          log-debug("textDocument/definition: name %=, not found", name);
+        end;
+      else
+        log-debug("textDocument/definition: name is #f, nothing to lookup", name);
+        show-info(session, "No name found at current position.");
+      end;
     end;
+    send-response(session, id, locations);
   end;
-  send-response(session, id, locations);
 end handler;
 
-// Find references to a symbol
-// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references
+// Find references to a Dylan name.
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references
 define handler textDocument/references
     (session :: <session>, id, params)
-  let (doc, line, column) = textdocumentposition-to-position(params);
-  let context = params["context"];
-  let include-declaration = context["includeDeclaration"];
-  let locations = $null;
-  if (~doc)
-    let uri = params["textDocument"]["uri"];
-    log-debug("textDocument/references: document %= not found", uri);
-    show-error(session, "Document not found: %s", uri);
-  else
-    let module = doc.document-module;
-    let symbol = module & symbol-at-position(doc, line, column);
-    if (symbol)
-      let env-object = get-environment-object(symbol, module: module);
-      if (~env-object)
-        show-error(session, "No definition found for %=", symbol);
-      else
-        let references = all-references(env-object, include-self?: include-declaration);
-        if (~empty?(references))
-          locations := map(method(reference)
-                             let source-location = get-location(reference);
-                             source-location-to-lsp-location(source-location);
-                           end, references);
+  with-lsp-params (params,
+                   uri = "textDocument.uri",
+                   line = "position.line",
+                   column = "position.character",
+                   include-declaration? = "context.includeDeclaration")
+    let doc = find-document(uri);
+    let result = $null;
+    if (~doc)
+      log-debug("textDocument/references: document %= not found", uri);
+      show-error(session, "Document not found: %s", uri);
+    else
+      let module = doc.document-module;
+      let name = module & dylan-name-at-position(doc, line, column);
+      if (name)
+        let env-object = find-environment-object(name, doc);
+        if (~env-object)
+          show-error(session, "No definition found for %=", name);
+        else
+          let references = all-references(env-object, doc.%project,
+                                          include-self?: include-declaration?);
+          if (~empty?(references))
+            result := map(method (reference)
+                            let source-location
+                              = od/environment-object-source-location(doc.%project, reference);
+                            source-location-to-lsp-location(source-location);
+                          end,
+                          references);
+          end;
         end;
       end;
     end;
+    send-response(session, id, result);
   end;
-  send-response(session, id, locations);
 end handler;
 
-// Maps URI strings to <document> objects.
-define constant $documents = make(<string-table>);
-
-// Represents one open file (given to us by textDocument/didOpen)
-define class <document> (<object>)
-  // The original URI string passed to us by the client to open this document.
-  constant slot %uri :: <string>, required-init-keyword: uri:;
-  // This changes as edits are made.
-  slot %lines :: <sequence>, required-init-keyword: lines:;
-  slot %module :: false-or(od/<module-object>) = #f, init-keyword: module:;
-end class;
-
-define method print-object
-    (document :: <document>, stream :: <stream>) => ()
-  printing-object (document, stream)
-    print(document.%uri, stream);
-  end;
-end method;
-
-define method document-module
-    (document :: <document>) => (module :: false-or(od/<module-object>))
-  document.%module
-    | if (*project*)
-        let file = file-uri-to-locator(document.%uri);
-        let (mod, lib) = od/file-module(*project*, file);
-        mod & (document.%module := mod)
-      end
-end method;
-
-// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
-define function make-document
-    (textDocument :: <string-table>) => (doc :: <document>)
-  // We ignore the "languageId" field because it should always be "dylan".
-  let uri = textDocument["uri"];
-  let version = textDocument["version"];
-  // TODO: find the module (from the document header) and provide the module: init
-  // keyword here.
-  $documents[uri]
-    := make(<document>,
-            uri: uri,
-            lines: split-lines(textDocument["text"]))
-end function;
-
-// Characters that are part of the Dylan "name" BNF.
-define constant $dylan-name-characters
-  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIHJLKMNOPQRSTUVWXYZ0123456789!&*<>|^$%@_-+~?/=";
-
-// Given a document and a position, find the Dylan name (identifier) that is at
-// (or immediately precedes) this position. If the position is, for example,
-// the open paren following a function name, we should still find the name. If
-// there is no name at position, return #f.
-//
-// TODO: Fancy stuff like if the line begins with "define" look up the "-definer".  Maybe
-// return a second value to indicate that this might be a definer.
-define function symbol-at-position
-    (doc :: <document>, line, column) => (symbol :: false-or(<string>))
-  if (line >= 0
-        & line < size(doc.%lines)
-        & column >= 0
-        & column <= size(doc.%lines[line]))
-    let line = doc.%lines[line];
-    local method name-character?(c) => (well? :: <boolean>)
-            member?(c, $dylan-name-characters)
-          end;
-    let symbol-start = column;
-    let symbol-end = column;
-    while (symbol-start > 0 & name-character?(line[symbol-start - 1]))
-      symbol-start := symbol-start - 1;
-    end;
-    while (symbol-end < size(line) & name-character?(line[symbol-end]))
-      symbol-end := symbol-end + 1;
-    end while;
-    let name = copy-sequence(line, start: symbol-start, end: symbol-end);
-    ~empty?(name) & name
-  else
-    log-debug("line %d column %d not in range for document %s",
-              line, column, doc.%uri);
-    #f
-  end
-end function;
-
-// Lookup a symbol, return a sequence of all the locations
-// where it is defined
-// Each one is in a format compatible with LSP's Location object
+// Lookup a Dylan name and return a sequence of all the LSP Locations where it is
+// defined.
 define function lookup-symbol
-    (session, symbol :: <string>, #key module) => (symbols :: <sequence>)
-  let object = get-environment-object(symbol, module: module);
+    (name :: <string>, doc :: <document>) => (lsp-locations :: <sequence>)
+  let object = find-environment-object(name, doc);
   if (object)
-    let defs = all-definitions(*project*, object);
-    let locs = map(get-location, defs);
-    map(source-location-to-lsp-location, locs);
+    let defs = all-definitions(doc.%project, object);
+    let locs = map(curry(od/environment-object-source-location, doc.%project), defs);
+    map(source-location-to-lsp-location, locs)
   else
     #()
   end if;
@@ -593,65 +504,3 @@ define function source-location-to-lsp-location
   let uri = locator-to-file-uri(absolute-path);
   make-lsp-location(uri, start-line - 1, start-column, end-line - 1, end-column);
 end function;
-
-// Convert TextDocumentPositionParams to (doc, line, column)
-// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams
-// line and column are zero-based
-define function textdocumentposition-to-position
-    (params :: <object>) => (doc :: false-or(<document>), line :: <integer>, column :: <integer>)
-  let text-document = params["textDocument"];
-  let uri = text-document["uri"];
-  let position = params["position"];
-  let (line, column) = decode-lsp-position(position);
-  let doc = element($documents, uri, default: #f);
-  values(doc, line, column)
-end function;
-
-// Find the project library name to open.  Either it is set in the per-directory config
-// (passed in from the client) or the workspace chooses a default library for us.
-// Returns the name of a project or signals an error.
-//
-// TODO(cgay): Really we need to search the LID files to find the file in the
-//   textDocument/didOpen message so we can figure out which library's project
-//   to open.
-// TODO(cgay): This always opens the project via the registry because when it's opened
-//   via the .lid file directly the database doesn't get opened for reasons as yet
-//   unknown.
-define function find-project-name
-    (file :: <file-locator>) => (name :: <string>)
-  if (*project-name*)
-    log-debug("find-project-name: Using explicitly set project name: %s", *project-name*);
-    *project-name*
-  else
-    let workspace
-      = with-logged-stdio ()
-          ws/load-workspace(directory: file.locator-directory) // May signal <workspace-error>
-        end;
-    let library-name
-      = workspace & with-logged-stdio ()
-                      ws/workspace-default-library-name(workspace)
-                    end;
-    if (library-name)
-      log-debug("Found deft workspace default library name %=", library-name);
-      library-name
-    else
-      error("Dylan workspace has no default library; no .lid files created yet?"
-              " See https://opendylan.org/package/deft/index.html#workspaces"
-              " for how to configure a default project.");
-    end
-  end if
-end function;
-
-define handler exit
-    (session :: <session>, id, params)
-  session.session-state := $session-killed;
-end handler;
-
-
-ignore(*library*, run-compiler, list-all-package-names,
-       show-warning, show-log, show-error);
-
-
-// Local Variables:
-// indent-tabs-mode: nil
-// End:

@@ -138,3 +138,33 @@ define function locator-to-file-uri
     (loc :: <locator>) => (uri :: <string>)
   concatenate("file://", as(<string>, loc))
 end function;
+
+define function %lookup-param (params :: <table>, dotted-name :: <string>) => (value)
+  let sentinel = #"sentinel";
+  iterate loop (params = params,
+                names = as(<list>, split(dotted-name, '.')))
+    if (params == sentinel)
+      error("required parameter %s not found", dotted-name);
+    elseif (names.empty?)
+      params
+    else
+      let name = names[0];
+      let value = element(params, name, default: sentinel);
+      loop(value, names.tail)
+    end
+  end
+end function;
+
+define macro with-lsp-params
+    { with-lsp-params (?params:variable, ?bindings:*) ?:body end }
+ => { begin
+        let _params = ?params;
+        ?bindings;
+        ?body
+      end }
+ bindings:
+    { }
+ => { }
+    { ?var:variable = ?val:expression, ... }
+ => { let ?var = %lookup-param(_params, ?val); ... }
+end macro;
