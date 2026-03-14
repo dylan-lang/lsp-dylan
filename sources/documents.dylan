@@ -24,6 +24,7 @@ end method;
 
 define method document-module
     (doc :: <document>) => (module :: false-or(od/<module-object>))
+  log-debug("document-module: project: %=, locator: %=", doc.%project.od/project-name, doc.%locator);
   od/file-module(doc.%project, doc.%locator) // 2nd value is library, ignored
 end method;
 
@@ -75,13 +76,14 @@ define function open-document
     let project :: false-or(od/<project-object>)
       = execute-command(command)
           | error("project not found for library %=", library);
-    $documents[uri]
-      := make(<document>,
-              uri: uri,
-              locator: file,
-              lines: split-lines(text),
-              version: version,
-              project: project);
+    let doc = make(<document>,
+                   uri: uri,
+                   locator: file,
+                   lines: split-lines(text),
+                   version: version,
+                   project: project);
+    $documents[uri] := doc;
+    build-project(session, doc, link?: #f);
   end if;
 end function;
 

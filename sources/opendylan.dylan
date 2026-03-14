@@ -101,3 +101,21 @@ define function enable-od-environment-debug-logging ()
   // Not yet...
   //*dfmc-debug-out* := #(#"whatever");  // For dfmc-common's debug-out.
 end function;
+
+// Build the project associated with `doc` and report diagnostics back to the LSP client.
+define function build-project
+    (session :: <session>, doc :: <document>, #key link? :: <boolean>) => ()
+  let warnings = make(<stretchy-vector>);
+  od/build-project(doc.%project,
+                   link?: link?,
+                   warning-callback: curry(add!, warnings),
+                   error-handler: method (kind :: <symbol>, message :: <string>)
+                                    log-debug("%s: %s", kind, message);
+                                  end);
+  show-info(session, "Build complete, %s warning%s",
+            if (empty?(warnings)) "no" else warnings.size end,
+            if (warnings.size == 1) "" else "s" end);
+  // TODO: I believe we can publish diagnostics as they occur (i.e., in warning-callback)
+  // rather than waiting until the end and publishing in a batch.
+  publish-diagnostics(session, doc.%uri, warnings);
+end function;

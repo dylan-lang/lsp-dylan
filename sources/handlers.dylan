@@ -212,7 +212,7 @@ define handler textDocument/didOpen
   let uri = textDocument["uri"];
   if (textDocument["languageId"] ~= "dylan")
     // Not sure how we would ever end up here, but...
-    show-info("Ignoring non Dylan file: %s", uri)
+    show-info(session, "Ignoring non Dylan file: %s", uri)
   else
     let text :: <string> = textDocument["text"];
     let version :: <integer> = textDocument["version"];
@@ -222,7 +222,7 @@ define handler textDocument/didOpen
     if (doc)
       $documents[uri] := doc;
     else
-      show-error("Document not found: %s", uri);
+      show-error(session, "Document not found: %s", uri);
     end;
   end if;
 end handler;
@@ -233,29 +233,19 @@ end handler;
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_didSave
 define handler textDocument/didSave
     (session :: <session>, id, params)
-  let textDocument = params["textDocument"];
-  let uri = textDocument["uri"];
-  let doc = find-document(uri)
-              | error("Document not found: %s", uri);
-  let warnings = make(<stretchy-vector>);
-  od/build-project(doc.%project,
-                   // https://github.com/dylan-lang/lsp-dylan/issues/48#issuecomment-4040703053
-                   link?: #f,
-                   warning-callback: curry(add!, warnings),
-                   error-handler: method (kind :: <symbol>, message :: <string>)
-                                    log-debug("%s: %s", kind, message);
-                                  end);
-  log-debug("textDocument/didSave: done building %=", doc.%project);
-  show-info(session, "Build complete, %s warning%s",
-            if (empty?(warnings)) "no" else warnings.size end,
-            if (warnings.size == 1) "" else "s" end);
-  publish-diagnostics(session, uri, warnings);
+  with-lsp-params (params, uri = "textDocument.uri")
+    let doc = find-document(uri)
+      | error("Document not found: %s", uri);
+    // RE: `link?: #f` see https://github.com/dylan-lang/lsp-dylan/issues/48#issuecomment-4040703053
+    build-project(session, doc, link?: #f);
+  end;
 end handler;
 
+// TODO: store this in the session, and it can just be a sequence of URIs, needn't be a table.
 define variable *previous-warnings-by-uri* = #f;
 
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#textDocument_publishDiagnostics
-// htt ps://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#diagnostic
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_publishDiagnostics
+// TODO: The uri parameter is unused and unnecessary.
 define function publish-diagnostics
      (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
@@ -422,7 +412,7 @@ define handler textDocument/definition
     else
       let module = doc.document-module;
       let name = module & dylan-name-at-position(doc, line, column);
-      log-debug("textDocument/definition: module: %=, name: %=", module, name);
+      log-debug("textDocument/definition: project: %=, module: %=, name: %=", doc.%project, module, name);
       if (name)
         locations := lookup-symbol(name, doc);
         if (empty?(locations))
