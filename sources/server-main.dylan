@@ -4,17 +4,17 @@ define command-line <lsp-server-command-line> ()
   option debug-server? :: <boolean> = #f,
     names: #("debug-server"),
     kind: <flag-option>,
-    help: "Turn on debugging for the LSP server. [%default%]";
+    help: "Enter the debugger (or crash with a backtrace) on error. [%default%]";
   option debug-opendylan? :: <boolean> = #f,
     names: #("debug-opendylan"),
     kind: <flag-option>,
-    help: "Turn on debugging for Open Dylan. [%default%]";
+    help: "Include Open Dylan debug messages in the log. [%default%]";
   option log-file,
     names: #("log"),
     variable: "FILE",
     kind: <parameter-option>,
     default: "dylan-lsp-server.log",
-    help: "Server log file. [%default%]";
+    help: "Server log file, relative to the initial workspace root directory if not an absolute path. [%default%]"
 end command-line;
 
 define function main

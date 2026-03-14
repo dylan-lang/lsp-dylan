@@ -5,12 +5,12 @@ define library lsp-dylan
   use command-line-parser;
   use commands;
   use common-dylan;
-  use dfmc-back-end-implementations;
+  use dfmc-back-end-implementations; // For side effect?
   use dfmc-reader;
   use dylan;
   use deft;
   use environment-commands;
-  use environment-internal-commands;
+  use environment-internal-commands; // For side effect
   use environment-protocols;
   use file-source-records;
   use io;
