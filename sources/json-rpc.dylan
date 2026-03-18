@@ -97,72 +97,9 @@ define method table-protocol
   values(\=, object-hash)
 end method;
 
-// Session lifecycle constants.
-define constant $session-preinit = 1;
-define constant $session-active = 2;
-define constant $session-shutdown = 3;
-define constant $session-killed = 4;
-
-// Manage one connection to a server, including life-cycle.
-define class <session> (<object>)
-  // Next ID to use in a request/notification.  The spec doesn't say whether these IDs
-  // are in a separate namespace from the requests sent to us from the client, but we
-  // assume they are.  That is, we may receive a request with ID 0 that is distinct from
-  // a request with ID 0 that we send to the client.
-  slot session-id :: <integer> = 0;
-  // Current state, see $session-preinit et al.
-  slot session-state :: <integer> = $session-preinit;
-  // Table of message-handler functions keyed by ID.
-  constant slot session-callbacks = make(<equal-table>);
-  // Root path or URI
-  slot session-root = #f;
-  slot session-trace :: <integer> = $trace-verbose;
-end class;
-
-define generic send-raw-message
-    (session :: <session>, message :: <object>) => ();
-define generic receive-raw-message
-    (session :: <session>) => (message :: <object>);
-
 define function trace-messages? (session :: <session>) => (_ :: <boolean>)
-  session.session-trace ~== $trace-off
+  session.%trace ~== $trace-off
 end function;
-
-// Send a request message.
-// Optionally, register a callback to be called with the response
-// to this message.
-// The callback is a function as defined with 'define message-handler'.
-define generic send-request
-    (session :: <session>, method-name :: <string>, params :: <object>,
-     #key callback) => ();
-
-// Send the response to a request with identifier id.
-// This applies to a successful request.
-define generic send-response
-    (session :: <session>, id :: <object>, result :: <object>) => ();
-
-// Send an error response to the request with identifier id.
-// Optionally include a human-readable error message and extra data
-define generic send-error-response
-    (session :: <session>, id :: <object>, error-code :: <integer>,
-     #key error-message, error-data)
- => ();
-
-// Send an LSP notification-type message.
-// This has a method name but no ID because it isn't replied to
-define generic send-notification
-    (session :: <session>, method-name :: <string>, params :: <object>) => ();
-
-// Get the next message.
-// If the message is a notification or request, return it
-// for processing. If it is a response to a request sent
-// by the server, look up the reponse callback and call it.
-define generic receive-message
-    (session :: <session>)
- => (method-name :: <string>, id :: <object>, params :: <object>);
-
-// Flush any pending messages through the connection.
-define generic flush (session :: <session>) => ();
 
 // Make the 'skeleton' of a JSONRPC 2.0 message.
 define function make-message (#key method-name, id)
@@ -210,10 +147,12 @@ define method receive-message
         if (session.trace-messages?)
           log-debug("receive-message: got id %=", id);
         end;
-        let func = element(session.session-callbacks, id, default: #f);
+        let func = element(session.%callbacks, id, default: #f);
+        remove-key!(session.%callbacks, id);
         if (func)
-          remove-key!(session.session-callbacks, id);
           func(session, id, params);
+        else
+          log-debug("No callback found for response with ID %d", id);
         end;
       end;
     end while;
@@ -224,14 +163,14 @@ define method send-request
     (session :: <session>, method-name :: <string>, params :: <object>,
      #key callback :: false-or(<function>))
  => ()
-  let id = session.session-id;
-  session.session-id := id + 1;
+  let id = session.%id;
+  session.%id := id + 1;
   let message = make-message(method-name: method-name, id: id);
   if (params)
     message["params"] := params;
   end if;
   if (callback)
-    session.session-callbacks[id] := callback;
+    session.%callbacks[id] := callback;
   end if;
   send-raw-message(session, message);
 end method;
@@ -258,14 +197,6 @@ define method send-error-response
   send-raw-message(session, message);
 end method;
 
-// A session communicating over standard in/out.
-// This is the only one implemented for now.
-define class <stdio-session> (<session>)
-  constant slot session-input-stream :: <stream>,
-    required-init-keyword: input-stream:;
-  constant slot session-output-stream :: <stream>,
-    required-init-keyword: output-stream:;
-end class;
 
 // Logging the hover methods is so verbose it makes the logs hard to use, so we have a
 // simple mechanism to stifle them.  Not sure if it's worth implementing something like
@@ -306,12 +237,12 @@ define method send-raw-message
     log-debug("Sent JSON:\n%s",
               print-json-to-string(reduce-verbosity(message), indent: 2, sort-keys?: #t));
   end;
-  write-json-message(session.session-output-stream, str);
+  write-json-message(session.%output-stream, str);
 end method;
 
 define method receive-raw-message
     (session :: <stdio-session>) => (message :: <object>)
-  let json = read-json-message(session.session-input-stream);
+  let json = read-json-message(session.%input-stream);
   if (session.trace-messages? & log-message-json?(json))
     log-debug("Received JSON:\n%s",
               print-json-to-string(reduce-verbosity(json), indent: 2, sort-keys?: #t));
@@ -320,7 +251,7 @@ define method receive-raw-message
 end method;
 
 define method flush (session :: <stdio-session>) => ()
-  force-output(session.session-output-stream);
+  force-output(session.%output-stream);
 end method;
 
 // Replace the value of any attribute named "text" with a trimmed version of the string.

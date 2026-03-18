@@ -37,8 +37,8 @@ end function;
 define function find-environment-object
     (name :: <string>, doc :: <document>)
  => (object :: false-or(od/<environment-object>))
-  let library = od/project-library(doc.%project);
-  od/find-environment-object(doc.%project, name,
+  let library = od/project-library(doc.project-object);
+  od/find-environment-object(doc.project-object, name,
                              library: library,
                              module: doc.document-module);
 end function;
@@ -106,7 +106,7 @@ end function;
 define function build-project
     (session :: <session>, doc :: <document>, #key link? :: <boolean>) => ()
   let warnings = make(<stretchy-vector>);
-  od/build-project(doc.%project,
+  od/build-project(doc.project-object,
                    link?: link?,
                    warning-callback: curry(add!, warnings),
                    error-handler: method (kind :: <symbol>, message :: <string>)
@@ -117,5 +117,5 @@ define function build-project
             if (warnings.size == 1) "" else "s" end);
   // TODO: I believe we can publish diagnostics as they occur (i.e., in warning-callback)
   // rather than waiting until the end and publishing in a batch.
-  publish-diagnostics(session, doc.%uri, warnings);
+  publish-diagnostics(session, doc, warnings);
 end function;

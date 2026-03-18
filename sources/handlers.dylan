@@ -14,62 +14,54 @@ Copyright: 2019
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize
 define handler initialize
     (session :: <session>, id, params)
-  let trace = element(params, "trace", default: "off");
-  session.session-trace := name-to-trace-value(trace);
-  // The initialize message may be received multiple times and we don't want
-  // to change the working directory each time. Need to re-use the same _build
-  // directory to keep build times short. (Should this be ~== $session-active ?)
-  if (session.session-state == $session-preinit)
-    let root-uri  = element(params, "rootUri", default: #f);
-    let root-path = element(params, "rootPath", default: #f);
-    // TODO(cgay): Both rootPath and rootUri are deprecated in favor of
-    // workspaceFolders, but lsp-mode doesn't send workspaceFolders.
-    // Does VS Code send it?
-    session.session-root := find-workspace-root(root-uri, root-path);
-    // lsp-dylan startup code stuffs the log file into the params.
-    let log-file = params[$lsp-log-file-key];
-    if (session.session-root)
-      working-directory() := session.session-root;
+  with-lsp-params (params,
+                   root-uri = "rootUri",
+                   root-path = "rootPath",
+                   // lsp-dylan startup code stuffs the log file into the params.
+                   log-file = $lsp-log-file-key)
+    let trace = element(params, "trace", default: "off");
+    session.%trace := name-to-trace-value(trace);
+    let ws-dir = find-workspace-root(root-uri, root-path);
+    if (ws-dir)
+      working-directory() := ws-dir;
       // If log-file is relative, put it in the project root by default.
-      log-file := merge-locators(session.session-root,
-                                 as(<file-locator>, log-file))
+      log-file := merge-locators(ws-dir, as(<file-locator>, log-file))
     end;
-    // TBD whether our logging is totally redundant with sending `$/logTrace` messages.
     *log* := make(<log>,
                   name: "lsp-dylan",
-                  level: select (session.session-trace)
+                  level: select (session.%trace)
                            $trace-messages, $trace-verbose => $debug-level;
                            otherwise => $info-level;
                          end,
                   targets: list($stderr-log-target,
                                 make(<rolling-file-log-target>,
                                      pathname: log-file)));
-    session.session-state := $session-active
-  end;
-  // Now that logging has been configured...
-  if (session.trace-messages?)
-    log-debug("Received LSP 'initialize' message with ID %d:\n%s",
-              id, print-json-to-string(reduce-verbosity(params),
-                                       indent: 2, sort-keys?: #t));
-  end;
+    session.%state := $session-active;
 
-  // Return the capabilities of this server
-  // TODO(cgay): diagnosticProvider
-  let capabilities = json("hoverProvider", #t,
-                          "textDocumentSync", 1,
-                          "declarationProvider", #t,
-                          "definitionProvider", #t,
-                          "referencesProvider", #t,
-                          "workspaceSymbolProvider", #t);
-  let response-params
-    = json("capabilities", capabilities,
-           // TODO: send server version
-           "serverInfo", json("name", "Dylan LSP Server"));
-  send-response(session, id, response-params);
-  log-info("Workspace root: %s", session.session-root);
-  log-info("Debug server?: %=", *debug-server?*);
-  log-info("Trace: %s", trace);
-  log-info("Dylan LSP server initialized.");
+    // Now that logging has been configured...
+    if (session.trace-messages?)
+      log-debug("Received LSP 'initialize' message with ID %d:\n%s",
+                id, print-json-to-string(reduce-verbosity(params),
+                                         indent: 2, sort-keys?: #t));
+    end;
+
+    // TODO(cgay): diagnosticProvider
+    let capabilities = json("hoverProvider", #t,
+                            "textDocumentSync", 1,
+                            "declarationProvider", #t,
+                            "definitionProvider", #t,
+                            "referencesProvider", #t,
+                            "workspaceSymbolProvider", #t);
+    let response-params
+      = json("capabilities", capabilities,
+             // TODO: server version
+             "serverInfo", json("name", "Dylan LSP Server"));
+    send-response(session, id, response-params);
+    log-info("Workspace root: %s", ws-dir);
+    log-info("Debug server?: %=", *debug-server?*);
+    log-info("Trace: %s", trace);
+    log-info("Dylan LSP server initialized.");
+  end;
 end handler;
 
 // Handler for 'initialized' message.
@@ -116,7 +108,7 @@ end handler;
 
 define handler exit
     (session :: <session>, id, params)
-  session.session-state := $session-killed;
+  session.%state := $session-killed;
 end handler;
 
 // --------------------------------------------------------------------------------
@@ -190,7 +182,7 @@ define handler textDocument/hover
       let module = doc.document-module;
       let name   = module & dylan-name-at-position(doc, line, column);
       let object = name   & find-environment-object(name, doc);
-      let text   = object & od/environment-object-description(doc.%project, object, module);
+      let text   = object & od/environment-object-description(doc.project-object, object, module);
       let msg    = text   & format-hover-message(text);
       let result
         = if (msg)
@@ -241,17 +233,12 @@ define handler textDocument/didSave
   end;
 end handler;
 
-// TODO: store this in the session, and it can just be a sequence of URIs, needn't be a table.
-define variable *previous-warnings-by-uri* = #f;
-
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_publishDiagnostics
-// TODO: The uri parameter is unused and unnecessary.
+// The `doc` parameter is the document that caused a rebuild.
 define function publish-diagnostics
-     (session :: <session>, uri :: <string>, warnings :: <sequence>) => ()
+     (session :: <session>, doc :: <document>, warnings :: <sequence>) => ()
   // Since textDocument/publishDiagnostics has a uri parameter it seems we have
   // to send warnings separately for each file that has them.
-  let context = server-context(*dylan-compiler*);
-  let project = od/context-project(context);
   local
     method source-uri (loc)
       let sr = loc & loc.source-location-source-record;
@@ -276,9 +263,10 @@ define function publish-diagnostics
                        make-lsp-position(end-line, end-col));
       end
     end method;
+  let proj-object :: od/<project-object> = doc.project-object;
   let warnings-by-uri = make(<string-table>);
   for (warning in warnings)
-    let loc = od/environment-object-source-location(project, warning);
+    let loc = od/environment-object-source-location(proj-object, warning);
     // TODO: what's the right way to present diagnostics that have no source location
     // in LSP?  If none, perhaps just associate them with the current file? lsp-mode
     // explodes if no source is given.
@@ -302,10 +290,10 @@ define function publish-diagnostics
           end;
       let diagnostic
         = json("uri", uri,
-               "range", source-range(od/environment-object-source-location(project, warning)),
+               "range", source-range(od/environment-object-source-location(proj-object, warning)),
                "severity", severity,
                "source", "Open Dylan",
-               "message", od/compiler-warning-full-message(project, warning));
+               "message", od/compiler-warning-full-message(proj-object, warning));
       add!(diagnostics, diagnostic);
     end for;
     send-notification(session, "textDocument/publishDiagnostics",
@@ -313,16 +301,16 @@ define function publish-diagnostics
                            "diagnostics", diagnostics));
   end;
   // Clear diagnostics for URIs that no longer have any.
-  if (*previous-warnings-by-uri*)
-    for (_ keyed-by old-uri in *previous-warnings-by-uri*)
-      if (~element(warnings-by-uri, old-uri, default: #f))
-        send-notification(session, "textDocument/publishDiagnostics",
-                          json("uri", old-uri,
-                               "diagnostics", #[]));
-      end;
+  let project = doc.%project;
+  for (uri in copy-sequence(project.%diagnostics-uris))
+    if (~member?(uri, warnings-by-uri))
+      send-notification(session, "textDocument/publishDiagnostics",
+                        json("uri", uri,
+                             "diagnostics", #[]));
+      project.%diagnostics-uris
+        := remove!(project.%diagnostics-uris, uri, test: \=);
     end;
   end;
-  *previous-warnings-by-uri* := warnings-by-uri;
 end function;
 
 // I (cgay) am not sure what we're meant to do with these messages. Theoretically we
@@ -449,12 +437,12 @@ define handler textDocument/references
         if (~env-object)
           show-error(session, "No definition found for %=", name);
         else
-          let references = all-references(env-object, doc.%project,
+          let references = all-references(env-object, doc.project-object,
                                           include-self?: include-declaration?);
           if (~empty?(references))
             result := map(method (reference)
                             let source-location
-                              = od/environment-object-source-location(doc.%project, reference);
+                              = od/environment-object-source-location(doc.project-object, reference);
                             source-location-to-lsp-location(source-location);
                           end,
                           references);
@@ -472,8 +460,8 @@ define function lookup-symbol
     (name :: <string>, doc :: <document>) => (lsp-locations :: <sequence>)
   let object = find-environment-object(name, doc);
   if (object)
-    let defs = all-definitions(doc.%project, object);
-    let locs = map(curry(od/environment-object-source-location, doc.%project), defs);
+    let locs = map(curry(od/environment-object-source-location, doc.project-object),
+                   all-definitions(doc.project-object, object));
     map(source-location-to-lsp-location, locs)
   else
     #()

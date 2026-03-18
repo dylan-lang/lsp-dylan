@@ -66,10 +66,10 @@ define module lsp-dylan-impl
 
   // For test suite.
   export
-    session-id,
+    %id,
     json,
     send-raw-message,
     send-request,
     <stdio-session>,
-      session-output-stream;
+      %output-stream;
 end module;

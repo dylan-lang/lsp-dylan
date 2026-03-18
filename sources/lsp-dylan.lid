@@ -1,6 +1,7 @@
 Library: lsp-dylan
 Files: library
        misc
+       sessions
        protocol
        opendylan
        json-rpc

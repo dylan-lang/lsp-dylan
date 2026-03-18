@@ -26,7 +26,7 @@ define constant $lsp-log-file-key = "_lsp-dylan-log-file";
 
 define function lsp-pre-init-state-loop
     (session :: <session>, log-file :: <string>) => ()
-  while (session.session-state == $session-preinit)
+  while (session.%state == $session-preinit)
     log-debug("lsp-pre-init-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     if (meth = "initialize")
@@ -41,13 +41,14 @@ define function lsp-pre-init-state-loop
       // (Notifications have no id.)
       send-error-response(session, id, $server-not-initialized);
     end;
+    // TODO: seems like send-response should always flush output
     flush(session);
   end while;
 end function;
 
 define function lsp-active-state-loop
     (session :: <session>) => ()
-  while (session.session-state == $session-active)
+  while (session.%state == $session-active)
     log-debug("lsp-active-state-loop: waiting for message");
     let (meth, id, params) = receive-message(session);
     invoke-message-handler(meth, session, id, params);
@@ -58,7 +59,7 @@ end function;
 define function lsp-shutdown-state-loop
     (session :: <session>) => ()
   block (return)
-    while (session.session-state == $session-shutdown)
+    while (session.%state == $session-shutdown)
       log-debug("lsp-shutdown-state-loop: waiting for message");
       let (meth, id, params) = receive-message(session);
       if (meth = "exit")

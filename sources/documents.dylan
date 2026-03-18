@@ -10,7 +10,7 @@ define class <document> (<object>)
   // The original URI string passed to us by the client to open this document.
   constant slot %uri :: <string>, required-init-keyword: uri:;
   constant slot %locator :: <file-locator>, required-init-keyword: locator:;
-  constant slot %project :: od/<project-object>, required-init-keyword: project:;
+  constant slot %project :: <project>, required-init-keyword: project:;
   constant slot %version :: <integer>, required-init-keyword: version:;
   slot %lines :: <sequence>, required-init-keyword: lines:;
 end class;
@@ -22,10 +22,13 @@ define method print-object
   end;
 end method;
 
+define function project-object (doc :: <document>) => (project :: od/<project-object>)
+  doc.%project.%project-object
+end function;
+
 define method document-module
     (doc :: <document>) => (module :: false-or(od/<module-object>))
-  log-debug("document-module: project: %=, locator: %=", doc.%project.od/project-name, doc.%locator);
-  od/file-module(doc.%project, doc.%locator) // 2nd value is library, ignored
+  od/file-module(doc.project-object, doc.%locator) // 2nd value is library, ignored
 end method;
 
 define function find-document (uri :: <string>) => (doc :: false-or(<document>))
@@ -73,18 +76,20 @@ define function open-document
     let command = make-command(od/<open-project-command>,
                                server: server-context(*dylan-compiler*),
                                file: as(<file-locator>, library));
-    let project :: false-or(od/<project-object>)
+    let project-object :: od/<project-object>
       = execute-command(command)
           | error("project not found for library %=", library);
+    let project = make(<project>,
+                       project-object: project-object);
     let doc = make(<document>,
                    uri: uri,
                    locator: file,
                    lines: split-lines(text),
                    version: version,
                    project: project);
-    $documents[uri] := doc;
     build-project(session, doc, link?: #f);
-  end if;
+    $documents[uri] := doc
+  end if
 end function;
 
 // Characters that are part of the Dylan "name" BNF.
