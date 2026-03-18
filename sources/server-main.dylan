@@ -30,13 +30,6 @@ define function main
     format-err("Error: %s\n", err);
     force-err();
     exit-application(exit-status(err));
-  exception (err :: <error>)
-    // If the 'initialize' LSP handler was successful the log will be in the workspace
-    // root directory, otherwise in the working directory where lsp-dylan was started.
-    log-error("Error: %s", err);
-    format-err("Error: %s", err);
-    force-err();
-    exit-application(1);
   end;
 end function;
 
