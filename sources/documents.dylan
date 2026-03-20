@@ -55,12 +55,14 @@ define function open-document
         for (lid keyed-by lid-path in ws/lids-by-pathname(ws))
           if (matches-current-platform?(lid))
             for (filename in ws/lid-values(lid, #"files"))
-              let loc = file-locator(as(<file-locator>, lid-path).locator-directory,
-                                     if (ends-with?(filename, ".dylan"))
-                                       filename
-                                     else
-                                       concatenate(filename, ".dylan")
-                                     end);
+              unless (ends-with?(filename, ".dylan"))
+                filename := concatenate(filename, ".dylan")
+              end;
+              let lid-directory = locator-directory(as(<file-locator>, lid-path));
+              // Using file-locator here doesn't work because the Files list may contain
+              // any relative path, which doesn't work with file-locator (yet?).
+              let loc = simplify-locator(merge-locators(as(<file-locator>, filename),
+                                                        lid-directory));
               if (loc = file)
                 exit-block(ws/library-name(lid, error?: #t));
               end;
