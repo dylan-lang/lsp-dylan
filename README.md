@@ -12,6 +12,7 @@ As of February 2026, the server implements the following features:
 * Jump to definition
 * Diagnostics (i.e., compiler warnings)
 * Hover (i.e., parameter lists)
+* References
 
 When applied to a symbol which is bound to a generic function, "jump to
 definition" will show a list containing the generic function and its specific
