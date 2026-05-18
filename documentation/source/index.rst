@@ -1,11 +1,11 @@
 .. highlight:: shell
 
-*********************
-Dylan Language Server
-*********************
+*********
+lsp-dylan
+*********
 
 This is an implementation of the `Language Server Protocol
-<https://microsoft.github.io/language-server-protocol/>`_ for Dylan.
+<https://microsoft.github.io/language-server-protocol/>`_ (LSP) for Dylan.
 
 .. toctree::
    :hidden:
@@ -13,12 +13,12 @@ This is an implementation of the `Language Server Protocol
 Current Status
 ==============
 
-As of 2024-04-19, the server implements
+As of February 2026, the server implements the following features:
 
 * Jump to declaration
 * Jump to definition
 * Diagnostics (i.e., compiler warnings)
-* Hover (i.e., argument lists)
+* Hover (i.e., parameter lists)
 
 When applied to a symbol which is bound to a generic function, "jump to
 definition" will show a list containing the generic function and its specific
@@ -147,35 +147,41 @@ These instructions were tested on Linux and macOS.
 
 1.  Install Visual Studio Code and ``npm``.
 
-2.  The VS Code extension is in the folder ``vscode-dylan``. It is necessary to
-    run ``npm install`` in this folder before starting the extension for the
-    first time, and any time a ``git pull`` updates the dependencies.
+2.  Clone the `vscode-dylan repository <https://github.com/dylan-lang/vscode-dylan>`_ and
+    in the new ``vscode-dylan`` folder run ``npm install`` before starting the extension
+    for the first time (and also any time a ``git pull`` updates the dependencies).
 
 3.  Open the ``vscode-dylan`` folder in VS Code.
 
-4.  In the debug viewlet, click the green play arrow (Launch Extension) or
-    press ``F5``.
+4.  Click on the debug icon on the far left side panel and click the green "play" arrow
+    (Launch Extension), or just press ``F5``.  A new VS Code window will open with the
+    extension running.
 
-5.  A build process will begin in 'watch mode'; whenever the source is changed,
-    the extension will be rebuilt. It is possible to debug the VS Code
-    extension in this window, set breakpoints, watch variables and so on.
+    A build process will begin in "watch mode"; whenever the source is changed, the
+    extension will be rebuilt. It is possible to debug the VS Code extension in this
+    window, set breakpoints, watch variables and so on.
 
-6.  A new VS Code window will open with the extension running.
+5.  Open a folder with a Dylan project in it.  It should be the root folder containing
+    the "registry" and "_build" directories.
 
-7.  Open a folder with a Dylan project in it.
-
-8.  If :program:`dylan-lsp-server` is on the system path, it will be
+6.  If :program:`dylan-lsp-server` is on the system path, it will be
     found. Otherwise, open the Settings *in the new extension window*, find the
     Dylan section under Extensions, and edit the path to the LSP server. The
     full, absolute pathname to the executable needs to be specified. It is
     usually better to set this in the 'User' scope, otherwise it will only
     apply to that particular project.
 
-9.  It should now be possible to use the extension window to edit Dylan code
+7.  It should now be possible to use the extension window to edit Dylan code
     using LSP.
 
-10. If the VS Code extension is changed, it is necessary to restart the
+8.  If the VS Code extension is changed, it is necessary to restart the
     extension host, or just close and re-open the extension window.
+
+9.  If you're debugging LSP it may be useful to view the LSP protocol messages and other
+    debug info related to LSP.  To do this, select the VS Code ``OUTPUT`` tab and select
+    "Dylan LSP Server" from the menu to the right of that tab.  You can also look for the
+    ``dylan.trace.server.default`` setting in :file:`package.json` and change it from
+    "off" to "verbose".
 
 
 LSP Server Development

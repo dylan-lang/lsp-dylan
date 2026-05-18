@@ -1,4 +1,5 @@
 {
+    "license": "MIT",
     "name": "lsp-dylan",
     "description": "Language Server Protocol implementation",
     "version": "0.2.0",
@@ -6,13 +7,12 @@
         "command-line-parser@3.1",
         "deft",
         "json@1.0",
-        "logging@2.1",
-        "uncommon-dylan@0.2",
+        "logging@2.2.2",
+        "uncommon-dylan",
     ],
     "dev-dependencies": [
         "sphinx-extensions",
         "testworks",
-        "vscode-dylan"
     ],
     "url": "https://github.com/dylan-lang/lsp-dylan"
 }

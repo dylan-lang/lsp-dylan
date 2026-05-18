@@ -4,41 +4,31 @@ define command-line <lsp-server-command-line> ()
   option debug-server? :: <boolean> = #f,
     names: #("debug-server"),
     kind: <flag-option>,
-    help: "Turn on debugging for the LSP server. [%default%]";
+    help: "Enter the debugger (or crash with a backtrace) on error. [%default%]";
   option debug-opendylan? :: <boolean> = #f,
     names: #("debug-opendylan"),
     kind: <flag-option>,
-    help: "Turn on debugging for Open Dylan. [%default%]";
-  option log-file :: <file-locator>,
+    help: "Include Open Dylan debug messages in the log. [%default%]";
+  option log-file,
     names: #("log"),
     variable: "FILE",
     kind: <parameter-option>,
-    default: as(<file-locator>, "dylan-lsp-server.log"),
-    help: "Server log file. [%default%]";
+    default: "dylan-lsp-server.log",
+    help: "Server log file, relative to the initial workspace root directory if not an absolute path. [%default%]"
 end command-line;
 
 define function main
     (name :: <string>, arguments :: <vector>)
-  let command = make(<lsp-server-command-line>, help: "Dylan LSP server");
+  let command = make(<lsp-server-command-line>,
+                     help: "Dylan LSP server");
   block ()
     parse-command-line(command, application-arguments());
-
-    // Log to stderr so it shows up in the *dylan-lsp::stderr* buffer.  Log to
-    // a rolling temp file so we have a history and because I've seen the Emacs
-    // LSP client's *dylan-lsp::stderr* buffer not be kept up to date when the
-    // process restarts.
-    let file-target = make(<rolling-file-log-target>,
-                           pathname: command.log-file);
-    *log* := make(<log>,
-                  name: "lsp",
-                  level: $debug-level,
-                  targets: list($stderr-log-target, file-target));
-
     lsp-server-top-level(debug-server?: command.debug-server?,
-                         debug-opendylan?: command.debug-opendylan?);
+                         debug-opendylan?: command.debug-opendylan?,
+                         log-file: command.log-file);
   exception (err :: <abort-command-error>)
-    format-out("Error: %s\n", err);
-    force-out();
+    format-err("Error: %s\n", err);
+    force-err();
     exit-application(exit-status(err));
   end;
 end function;

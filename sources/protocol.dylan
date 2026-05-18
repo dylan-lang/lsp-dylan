@@ -13,7 +13,9 @@ define constant $diagnostic-severity-warning = 2;
 
 // --- ErrorCodes ---
 
-// Define by JSON
+// TODO: this is no longer a complete list of error codes. Also, use 'define enum'.
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#errorCodes
+
 define constant $parse-error :: <integer> = -32700;
 define constant $invalid-request :: <integer> = -32600;
 define constant $method-not-found :: <integer> = -32601;
@@ -65,6 +67,7 @@ define constant show-warning = curry(window/show-message, $message-type-warning)
 define constant show-info    = curry(window/show-message, $message-type-info);
 define constant show-log     = curry(window/show-message, $message-type-log);
 
+ignorable(show-warning, show-log);
 
 // --- Structures ---
 
@@ -91,15 +94,6 @@ define function make-lsp-location (doc :: <string>, start-line, start-character,
   let start-pos = make-lsp-position(start-line, start-character);
   let end-pos = make-lsp-position(end-line, end-character);
   json("uri", doc, "range", make-lsp-range(start-pos, end-pos))
-end function;
-
-// Decode a Position json object.  Note line and character are zero-based.
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#position
-define function decode-lsp-position
-    (position) => (line :: <integer>, character :: <integer>)
-  let line = position["line"];
-  let character = position["character"];
-  values(line, character)
 end function;
 
 // Create a MarkupContent json object.

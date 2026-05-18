@@ -2,16 +2,41 @@ Module: lsp-dylan-impl
 Synopsis: The ubiquitous misc.
 
 
-// Server started with --debug command line option? If true, let the server
-// crash and display a backtrace in the LSP stderr buffer instead of logging
-// the error.
-define variable *debug-mode?* :: <boolean> = #f;
+// Server started with --debug-server command line option? If true, let the server enter
+// the debugger or crash and display a backtrace in the lsp-mode stderr buffer instead of
+// logging the error.  (Where does this backtrace go when VS Code is the client?)
+define variable *debug-server?* :: <boolean> = #f;
 
-// LSP client asked to trace messages?
-define variable *trace-messages?* :: <boolean> = #f;
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#traceValue
+define enum trace-value ()
+  $trace-off "off";
+  $trace-messages "messages";
+  $trace-verbose "verbose";
+end;
 
-// LSP client asked to trace in more detail? (Unused as of Mar 2024.)
-define variable *trace-verbose?* :: <boolean> = #f;
+// https://github.com/dylan-lang/lsp-dylan/issues/47
+define macro with-logged-stdio
+    { with-logged-stdio () ?:body end }
+ => { let _stdout = *standard-output*;
+      let _stderr = *standard-error*;
+      block ()
+        *standard-output* := make(<string-stream>, direction: #"output");
+        *standard-error*  := make(<string-stream>, direction: #"output");
+        ?body
+      cleanup
+        let out = stream-contents(*standard-output*);
+        let err = stream-contents(*standard-error*);
+        *standard-output* := _stdout;
+        *standard-error*  := _stderr;
+        if (~empty?(out))
+          log-warning("stdout: %s", out);
+        end;
+        if (~empty?(err))
+          log-warning("stderr: %s", err);
+        end;
+      end
+    }
+end macro;
 
 // Maps handler name strings like "textDocument/definition" to the
 // corresponding handler function.
@@ -33,7 +58,7 @@ define function invoke-message-handler
   if (fn)
     block ()
       fn(session, id, params);
-    exception (err :: <error>, test: method (_) ~*debug-mode?* end)
+    exception (err :: <error>, test: method (_) ~*debug-server?* end)
       log-error("Error handling message %= (id=%s): %s",
                 name, id, err);
     end;
@@ -63,9 +88,13 @@ define function find-workspace-root
         as(<directory-locator>, root-path)
       end;
   let workspace = ws/find-workspace-file(directory)
-                    & ws/load-workspace(directory: directory);
+                    & with-logged-stdio ()
+                        ws/load-workspace(directory: directory)
+                      end;
   if (workspace)
-    ws/workspace-directory(workspace)
+    with-logged-stdio ()
+      ws/workspace-directory(workspace)
+    end
   else
     // Search up from `directory` to find the directory containing the
     // "registry" directory.
@@ -109,3 +138,33 @@ define function locator-to-file-uri
     (loc :: <locator>) => (uri :: <string>)
   concatenate("file://", as(<string>, loc))
 end function;
+
+define function %lookup-param (params :: <table>, dotted-name :: <string>) => (value)
+  let sentinel = #"sentinel";
+  iterate loop (params = params,
+                names = as(<list>, split(dotted-name, '.')))
+    if (params == sentinel)
+      error("required parameter %s not found", dotted-name);
+    elseif (names.empty?)
+      params
+    else
+      let name = names[0];
+      let value = element(params, name, default: sentinel);
+      loop(value, names.tail)
+    end
+  end
+end function;
+
+define macro with-lsp-params
+    { with-lsp-params (?params:variable, ?bindings:*) ?:body end }
+ => { begin
+        let _params = ?params;
+        ?bindings;
+        ?body
+      end }
+ bindings:
+    { }
+ => { }
+    { ?var:variable = ?val:expression, ... }
+ => { let ?var = %lookup-param(_params, ?val); ... }
+end macro;
