@@ -64,7 +64,7 @@ assumes you are using a `deft <https://github.com/dylan-lang/deft>`_ workspace
 and searches for a project to open as follows:
 
 1. If there is a :file:`workspace.json` file and that file has a
-   `"default-library"` property, the specified library is opened.
+   ``"default-library"`` property, the specified library is opened.
 
 2. It uses :program:`deft` to choose a library defined in the workspace. This
    is `generally
@@ -119,7 +119,7 @@ Emacs Usage
 5. Open a Dylan source file and type ``M-x lsp`` to start the client (unless
    you added the hook above, in which case it started automatically).
 
-The client starts the LSP server (the `dylan-lsp-server` executable) and
+The client starts the LSP server (the ``dylan-lsp-server`` executable) and
 connects to it.  You should see a message telling you what Dylan project was
 opened.
 
