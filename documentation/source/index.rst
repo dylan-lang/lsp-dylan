@@ -222,7 +222,7 @@ References
 ==========
 
 * `Intro to LSP from Microsoft
-  <https://docs.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol>`_ -
+  <https://learn.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol>`_ -
   Besides being a quick introduction, this has links to some other tools that
   would help in developing VS Code integration for Dylan.
 
