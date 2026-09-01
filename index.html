@@ -295,7 +295,7 @@ assumes you are using a <a class="reference external" href="https://github.com/d
 and searches for a project to open as follows:</p>
 <ol class="arabic simple">
 <li><p>If there is a <code class="file docutils literal notranslate"><span class="pre">workspace.json</span></code> file and that file has a
-<cite>“default-library”</cite> property, the specified library is opened.</p></li>
+<code class="docutils literal notranslate"><span class="pre">&quot;default-library&quot;</span></code> property, the specified library is opened.</p></li>
 <li><p>It uses <strong class="program">deft</strong> to choose a library defined in the workspace. This
 is <a class="reference external" href="https://github.com/dylan-lang/deft/blob/86583a27d1b63d1480a8c57e46d0dd249d131515/sources/workspaces/workspaces.dylan#L145">generally</a>
 the test suite library, if one exists; otherwise it chooses a project
@@ -342,7 +342,7 @@ this automatic, add this to your emacs init file:</p>
 <li><p>Open a Dylan source file and type <code class="docutils literal notranslate"><span class="pre">M-x</span> <span class="pre">lsp</span></code> to start the client (unless
 you added the hook above, in which case it started automatically).</p></li>
 </ol>
-<p>The client starts the LSP server (the <cite>dylan-lsp-server</cite> executable) and
+<p>The client starts the LSP server (the <code class="docutils literal notranslate"><span class="pre">dylan-lsp-server</span></code> executable) and
 connects to it.  You should see a message telling you what Dylan project was
 opened.</p>
 <p>The emacs client has a customization group “lsp-dylan” which is a member of the
@@ -434,7 +434,7 @@ like this:</p>
 <section id="references">
 <h2>References<a class="headerlink" href="#references" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p><a class="reference external" href="https://docs.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol">Intro to LSP from Microsoft</a> -
+<li><p><a class="reference external" href="https://learn.microsoft.com/en-us/visualstudio/extensibility/language-server-protocol">Intro to LSP from Microsoft</a> -
 Besides being a quick introduction, this has links to some other tools that
 would help in developing VS Code integration for Dylan.</p></li>
 <li><p><a class="reference external" href="https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/">LSP v3.15 Specification</a> -
